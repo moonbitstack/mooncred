@@ -338,7 +338,7 @@ fn suits(key : Jwk, alg : String, want : String?) -> Bool {
 
 ///|
 fn document(text : StringView) -> Json raise Bad {
-  @json.parse(text) catch {
+  @json.loads(text) catch {
     _ => raise Shape("not valid JSON")
   }
 }

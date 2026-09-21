@@ -146,15 +146,15 @@ test "a key read here drives the algorithm it names" {
 /// usual reason to write one is to publish it.
 test "writing a key does not publish the secret" {
   let key = @jwk.Jwk::parse(okp[:])
-  let published = @json.write(key.json())
+  let published = @json.dumps(key.json())
   assert_eq(
     published, "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}",
   )
   assert_false(@jwk.Jwk::read(key.json()).is_private())
-  let whole = @json.write(key.json(secret=true))
-  assert_true(@jwk.Jwk::read(@json.parse(whole[:])).is_private())
+  let whole = @json.dumps(key.json(secret=true))
+  assert_true(@jwk.Jwk::read(@json.loads(whole[:])).is_private())
   // And the round trip is exact.
-  assert_eq(@jwk.Jwk::read(@json.parse(whole[:])).material(), key.material())
+  assert_eq(@jwk.Jwk::read(@json.loads(whole[:])).material(), key.material())
 }
 
 ///|

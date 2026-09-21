@@ -604,7 +604,7 @@ fn split(token : StringView) -> (Int, Int) raise Rejected {
 
 ///|
 fn segment(value : Map[String, Json]) -> String {
-  wrap(@utf8.encode(@json.write(Json::object(value))[:]))
+  wrap(@utf8.encode(@json.dumps(Json::object(value))[:]))
 }
 
 ///|
@@ -625,7 +625,7 @@ fn object(seg : StringView, what : String) -> Map[String, Json] raise Rejected {
   let text = @utf8.decode(raw[:]) catch {
     _ => raise Shape("the \{what} is not UTF-8")
   }
-  let value = @json.parse(text[:]) catch {
+  let value = @json.loads(text[:]) catch {
     _ => raise Shape("the \{what} is not JSON")
   }
   match value {

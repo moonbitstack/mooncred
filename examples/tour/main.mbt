@@ -31,7 +31,7 @@ fn main raise {
     issuer="moonbitstack",
     audience=["moonapi"],
   )
-  println("HS256 subject -> \{@json.write(got.get("sub").unwrap())}")
+  println("HS256 subject -> \{@json.dumps(got.get("sub").unwrap())}")
 
   // The attack this refuses: the same bytes, read as another algorithm.
   try @jwt.verify(token[:], HS384, hs, now=At(now)) |> ignore catch {
@@ -61,7 +61,7 @@ fn main raise {
     _ => println("expired       -> accepted, which would be the bug")
   }
   let forced = @jwt.verify(stale[:], HS256, hs, now=Ignored)
-  println("ignored time  -> \{@json.write(forced.get("sub").unwrap())}")
+  println("ignored time  -> \{@json.dumps(forced.get("sub").unwrap())}")
 
   // EdDSA, with the key read from a JWK as a server would read it.
   let key = @jwk.Jwk::parse(
@@ -76,13 +76,13 @@ fn main raise {
       println("EdDSA token   -> \{signed}")
       // A verifier reads `kid` first, then fetches the key, then verifies.
       println(
-        "kid           -> \{@json.write(@jwt.header(signed[:]).get("kid").unwrap())}",
+        "kid           -> \{@json.dumps(@jwt.header(signed[:]).get("kid").unwrap())}",
       )
       let pk = @ed25519.PublicKey::new(x[:])
       @jwt.verify(signed[:], EdDSA, pk, now=At(now)) |> ignore
       println("EdDSA ok      -> true")
       // What a key set may be published as: the public half only.
-      println("published     -> \{@json.write(key.json())}")
+      println("published     -> \{@json.dumps(key.json())}")
     }
     _ => println("the JWK did not carry an Ed25519 key pair")
   }
