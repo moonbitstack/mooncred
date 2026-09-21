@@ -1,0 +1,116 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/x509"
+
+import {
+  "moonbitlang/core/bigint",
+  "moonbitlang/core/debug",
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+}
+
+// Values
+pub fn alg_ec_key() -> Bytes
+
+pub fn alg_ecdsa_sha256() -> Bytes
+
+pub fn common_name(String) -> Bytes
+
+pub fn dns_match(String, String) -> Bool
+
+pub let eku_client_auth : String
+
+pub let eku_server_auth : String
+
+pub let oid_cn : String
+
+pub fn parse(BytesView) -> Cert raise @asn1.Refused
+
+pub fn self_signed(@ecdsa.PrivateKey, Bytes, String, String, String) -> Bytes
+
+pub fn spki_of(@ecdsa.PublicKey) -> Bytes
+
+pub fn tbs_of(Bytes, String, String, String, @ecdsa.PublicKey) -> Bytes
+
+pub fn validity_of(String, String) -> Bytes
+
+// Errors
+
+// Types and methods
+pub(all) struct Attr {
+  oid : String
+  value : String
+} derive(Eq, @debug.Debug)
+pub fn Attr::equal(Self, Self) -> Bool
+pub fn Attr::not_equal(Self, Self) -> Bool
+pub fn Attr::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Cert {
+  raw : BytesView
+  tbs : BytesView
+  version : Int
+  serial : @bigint.BigInt
+  alg : String
+  issuer : Name
+  validity : Validity
+  subject : Name
+  spki : Spki
+  exts : Exts
+  sig : @asn1.Bits
+}
+pub fn Cert::matches(Self, String) -> Bool
+pub fn Cert::signed_by(Self, @ecdsa.PublicKey) -> Bool raise @asn1.Refused
+pub fn Cert::valid_at(Self, Int64) -> Bool
+
+pub(all) struct Exts {
+  san : Array[GeneralName]
+  ca : Bool
+  path_len : Int?
+  key_usage : @asn1.Bits?
+  eku : Array[String]?
+  unknown_critical : Array[String]
+} derive(Eq, @debug.Debug)
+pub fn Exts::equal(Self, Self) -> Bool
+pub fn Exts::not_equal(Self, Self) -> Bool
+pub fn Exts::to_repr(Self) -> @debug.Repr
+
+pub(all) enum GeneralName {
+  Dns(String)
+  Email(String)
+  Uri(String)
+  Ip(Bytes)
+  Named(Int, Bytes)
+} derive(Eq, @debug.Debug)
+pub fn GeneralName::equal(Self, Self) -> Bool
+pub fn GeneralName::not_equal(Self, Self) -> Bool
+pub fn GeneralName::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Name {
+  rdns : Array[Array[Attr]]
+} derive(Eq, @debug.Debug)
+pub fn Name::cn(Self) -> String?
+pub fn Name::equal(Self, Self) -> Bool
+pub fn Name::get(Self, String) -> String?
+pub fn Name::not_equal(Self, Self) -> Bool
+pub fn Name::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Spki {
+  alg : String
+  params : String?
+  key : @asn1.Bits
+} derive(Eq, @debug.Debug)
+pub fn Spki::equal(Self, Self) -> Bool
+pub fn Spki::not_equal(Self, Self) -> Bool
+pub fn Spki::p256(Self) -> @ecdsa.PublicKey raise @asn1.Refused
+pub fn Spki::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Validity {
+  not_before : Int64
+  not_after : Int64
+} derive(Eq, @debug.Debug)
+pub fn Validity::equal(Self, Self) -> Bool
+pub fn Validity::not_equal(Self, Self) -> Bool
+pub fn Validity::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

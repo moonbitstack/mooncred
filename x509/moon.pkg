@@ -1,0 +1,16 @@
+// X.509 v3 certificates, RFC 5280: https://www.rfc-editor.org/rfc/rfc5280
+//
+// Read and write the profile a TLS server needs: a P-256 key, an
+// ecdsa-with-SHA256 signature, a commonName and a subjectAltName. Chain building
+// and a trust store are not here; see the README for what that means.
+import {
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+}
+
+import {
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/moonbase/base16",
+  "moonbitstack/moonbase/base64",
+  "moonbitlang/core/encoding/utf8",
+} for "test"

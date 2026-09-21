@@ -22,6 +22,7 @@ let got = @jwt.verify(token[:], HS256, key, now=now_seconds,
 |:--:|:--|:--|
 | `jwt` | JWS compact serialisation, all thirteen JOSE algorithms | RFC 7515, 7518, 7519, 8037 |
 | `jwk` | JSON Web Key and key sets: reading, writing, choosing | RFC 7517, RFC 7518 §6 |
+| `x509` | X.509 v3 certificates: build a self-signed one, read one down to its extensions, check its dates, its names and its signature | RFC 5280, RFC 6125 |
 
 ## The algorithm is not the token's to choose
 
@@ -127,6 +128,40 @@ otherwise, and `None` is how a caller asks for no `typ` header at all:
 
 The shape follows from the preset, never from the label, so the same rule reads
 the same way in every library here.
+
+## Certificates
+
+```moonbit
+// Build one a TLS server can present. Self-signed, P-256, ES256.
+let der = @x509.self_signed(key, serial, "example.test", "260101000000Z", "270101000000Z")
+
+// Read one a peer sent.
+let cert = @x509.parse(der[:])
+cert.subject.cn()                 // Some("example.test")
+cert.valid_at(now)                // both ends inclusive, as RFC 5280 gives them
+cert.matches("a.example.test")    // RFC 6125 §6.4.3, wildcards included
+cert.signed_by(issuer_key)        // raises rather than answering false for an
+                                  // algorithm it did not check
+```
+
+**What it covers.** The profile a TLS server needs: a P-256 key under
+`id-ecPublicKey` on `prime256v1`, an `ecdsa-with-SHA256` signature, a
+commonName, a subjectAltName, and the extension rules RFC 5280 §4.2 layers on
+top — an extension may not appear twice, a critical one may not be silently
+skipped. It reads certificates other tools wrote, including RSA ones, down to
+their extensions; it refuses to *verify* an algorithm it does not check rather
+than answering `false`, so a caller cannot read "not checked" as "checked and
+bad".
+
+**What it does not.** Chain building and a trust store. A single hop is checked
+against a key the caller supplies, which is what a self-signed server
+certificate and a pinned issuer need; validating a chain against a set of roots,
+with path length and name constraints, is not here. Nor is certificate
+generation for anything but a P-256 server.
+
+The DER underneath is `mooncrypt/asn1` and the curve arithmetic is
+`mooncrypt/sign/ecdsa`: a certificate is a credential, so its shape lives here,
+while the algorithms it names live there.
 
 ## What is checked
 
