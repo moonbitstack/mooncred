@@ -195,15 +195,18 @@ pub let policy : Policy = {
 ///
 /// The same thing can be written `{ ..@jwt.policy, expiry: false }`; this form
 /// exists because a named argument reads better when several parts differ.
+/// `issuer`, `subject` and `typ` can be set here but not cleared: the preset
+/// leaves all three unset, so there is nothing to clear. Starting from a base of
+/// one's own, `{ ..mine, issuer: None }` is how a check is dropped.
 pub fn Policy::new(
   leeway? : Int64 = policy.leeway,
   expiry? : Bool = policy.expiry,
   not_before? : Bool = policy.not_before,
   issued_at? : Bool = policy.issued_at,
-  issuer? : String? = policy.issuer,
+  issuer? : String,
   audience? : Array[String] = policy.audience,
-  subject? : String? = policy.subject,
-  typ? : String? = policy.typ,
+  subject? : String,
+  typ? : String,
   required? : Array[String] = policy.required,
 ) -> Policy {
   {

@@ -105,6 +105,29 @@ match key.material() {
 }
 ```
 
+### When a setting takes a bare value and when it takes `Some`
+
+A setting whose preset is unset is written plainly, because there is nothing to
+clear:
+
+```moonbit
+@jwt.Policy::new(issuer="https://issuer.example", leeway=30)
+@jwt.verify(token[:], HS256, key, now=At(seconds), issuer="https://issuer.example")
+```
+
+A setting whose preset is a value takes an option, because clearing it is one of
+the things a caller needs to say. `sign` writes `typ: "JWT"` unless told
+otherwise, and `None` is how a caller asks for no `typ` header at all:
+
+```moonbit
+@jwt.sign(claims, HS256, key)                      // typ: "JWT"
+@jwt.sign(claims, HS256, key, typ=Some("at+jwt"))  // typ: "at+jwt"
+@jwt.sign(claims, HS256, key, typ=None)            // no typ header
+```
+
+The shape follows from the preset, never from the label, so the same rule reads
+the same way in every library here.
+
 ## What is checked
 
 Every one of the thirteen algorithms is verified against a token produced by a

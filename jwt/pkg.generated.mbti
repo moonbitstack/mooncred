@@ -91,7 +91,7 @@ pub(all) struct Policy {
   required : Array[String]
 } derive(Eq, @debug.Debug)
 pub fn Policy::equal(Self, Self) -> Bool
-pub fn Policy::new(leeway? : Int64, expiry? : Bool, not_before? : Bool, issued_at? : Bool, issuer? : String?, audience? : Array[String], subject? : String?, typ? : String?, required? : Array[String]) -> Self
+pub fn Policy::new(leeway? : Int64, expiry? : Bool, not_before? : Bool, issued_at? : Bool, issuer? : String, audience? : Array[String], subject? : String, typ? : String, required? : Array[String]) -> Self
 pub fn Policy::not_equal(Self, Self) -> Bool
 pub fn Policy::to_repr(Self) -> @debug.Repr
 

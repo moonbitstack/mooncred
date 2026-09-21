@@ -466,7 +466,7 @@ test "every check is a knob" {
     HS256,
     hs,
     now=Ignored,
-    policy=@jwt.Policy::new(subject=Some("heke1228")),
+    policy=@jwt.Policy::new(subject="heke1228"),
   )
   |> ignore
   try
@@ -475,7 +475,7 @@ test "every check is a knob" {
       HS256,
       hs,
       now=Ignored,
-      policy=@jwt.Policy::new(subject=Some("somebody")),
+      policy=@jwt.Policy::new(subject="somebody"),
     )
     |> ignore
   catch {
@@ -533,7 +533,7 @@ test "the typ header is a knob at both ends" {
     HS256,
     hs,
     now=Ignored,
-    policy=@jwt.Policy::new(typ=Some("jwt")),
+    policy=@jwt.Policy::new(typ="jwt"),
   )
   |> ignore
   try
@@ -542,7 +542,7 @@ test "the typ header is a knob at both ends" {
       HS256,
       hs,
       now=Ignored,
-      policy=@jwt.Policy::new(typ=Some("at+jwt")),
+      policy=@jwt.Policy::new(typ="at+jwt"),
     )
     |> ignore
   catch {
@@ -558,7 +558,7 @@ test "the typ header is a knob at both ends" {
     HS256,
     hs,
     now=Ignored,
-    policy=@jwt.Policy::new(typ=Some("at+jwt")),
+    policy=@jwt.Policy::new(typ="at+jwt"),
   )
   |> ignore
   // And a header with no `typ` at all, which RFC 7519 §5.1 permits.
@@ -571,7 +571,7 @@ test "the typ header is a knob at both ends" {
       HS256,
       hs,
       now=Ignored,
-      policy=@jwt.Policy::new(typ=Some("JWT")),
+      policy=@jwt.Policy::new(typ="JWT"),
     )
     |> ignore
   catch {
@@ -743,4 +743,58 @@ test "extra adds to the header, and can be forced to replace" {
     clash=Ignore,
   )
   assert_eq(@jwt.header(forced[:]).get("alg"), Some(Json::string("none")))
+}
+
+///|
+/// A label means the same thing and is written the same way wherever it appears.
+///
+/// `issuer` on the constructor and `issuer` on `verify` are one setting, so
+/// neither asks for a wrapper the other does not.
+test "one label, one calling convention" {
+  let built = @jwt.Policy::new(issuer="moonbitstack", leeway=30L)
+  assert_eq(built.issuer, Some("moonbitstack"))
+  assert_eq(built.leeway, 30L)
+  // The record update names the same policy.
+  assert_eq(built, { ..@jwt.policy, issuer: Some("moonbitstack"), leeway: 30L, })
+  // And the flat mirror on `verify` is spelled the way the constructor is.
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = @jwt.sign(claims(), HS256, hs)
+  let by_record = @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=At(1700000000L),
+    policy=built,
+  )
+  let by_mirror = @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=At(1700000000L),
+    issuer="moonbitstack",
+    leeway=30L,
+  )
+  assert_eq(by_record.get("iss"), by_mirror.get("iss"))
+  // The same check, refusing the same token, whichever way it was named.
+  let wrong = @jwt.Policy::new(issuer="somebody else")
+  for how in [0, 1] {
+    try
+      (if how == 0 {
+        @jwt.verify(token[:], HS256, hs, now=At(1700000000L), policy=wrong)
+      } else {
+        @jwt.verify(
+          token[:],
+          HS256,
+          hs,
+          now=At(1700000000L),
+          issuer="somebody else",
+        )
+      })
+      |> ignore
+    catch {
+      e => assert_eq(e, @jwt.Issuer(want="somebody else", got="moonbitstack"))
+    } noraise {
+      _ => fail("the wrong issuer was accepted")
+    }
+  }
 }

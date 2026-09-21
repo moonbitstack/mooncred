@@ -162,10 +162,10 @@ test "writing a key does not publish the secret" {
 /// only when there is no ambiguity.
 test "picking a key from a set" {
   let set = @jwk.Set::parse(public_set[:])
-  assert_true(set.pick(alg="RS256", id=Some("2011-04-29")) is Some(_))
+  assert_true(set.pick(alg="RS256", id="2011-04-29") is Some(_))
   // `kid` "1" is marked for encryption, so it is not a signing candidate.
-  assert_true(set.pick(alg="RS256", id=Some("1")) is None)
-  assert_true(set.pick(alg="RS256", id=Some("nobody")) is None)
+  assert_true(set.pick(alg="RS256", id="1") is None)
+  assert_true(set.pick(alg="RS256", id="nobody") is None)
   // Without a `kid`: the EC key is out because of `use`, leaving one.
   assert_true(set.pick(alg="RS256") is Some(_))
   // A key that names another algorithm is not a candidate.
@@ -175,7 +175,7 @@ test "picking a key from a set" {
     #|{"keys":[{"kty":"oct","k":"AAAA","kid":"a"},{"kty":"oct","k":"BBBB","kid":"b"}]}
   let ambiguous = @jwk.Set::parse(two[:])
   assert_true(ambiguous.pick(alg="HS256") is None)
-  assert_true(ambiguous.pick(alg="HS256", id=Some("b")) is Some(_))
+  assert_true(ambiguous.pick(alg="HS256", id="b") is Some(_))
 }
 
 ///|
@@ -229,8 +229,8 @@ test "key_ops narrows a key" {
     #|         {"kty":"oct","k":"BBBB","kid":"signing","key_ops":["sign","verify"]}]}
   let keys = @jwk.Set::parse(set[:])
   assert_eq(keys.keys()[0].ops(), ["wrapKey"])
-  assert_true(keys.pick(alg="HS256", id=Some("wrapping")) is None)
-  assert_true(keys.pick(alg="HS256", id=Some("signing")) is Some(_))
+  assert_true(keys.pick(alg="HS256", id="wrapping") is None)
+  assert_true(keys.pick(alg="HS256", id="signing") is Some(_))
   assert_true(keys.pick(alg="HS256") is Some(_))
 }
 
@@ -254,10 +254,10 @@ test "skipping unknown keys is a knob" {
 test "picking is a knob" {
   let set = @jwk.Set::parse(public_set[:])
   // `kid` "1" is marked for encryption, so it is out by default…
-  assert_true(set.pick(alg="RS256", id=Some("1")) is None)
+  assert_true(set.pick(alg="RS256", id="1") is None)
   // …and in when the caller is not filtering on `use`.
-  assert_true(set.pick(alg="RS256", id=Some("1"), usage=None) is Some(_))
-  assert_true(set.pick(alg="ES256", id=Some("1"), usage=Some("enc")) is Some(_))
+  assert_true(set.pick(alg="RS256", id="1", usage=None) is Some(_))
+  assert_true(set.pick(alg="ES256", id="1", usage=Some("enc")) is Some(_))
   let two =
     #|{"keys":[{"kty":"oct","k":"AAAA","kid":"a"},{"kty":"oct","k":"BBBB","kid":"b"}]}
   let ambiguous = @jwk.Set::parse(two[:])

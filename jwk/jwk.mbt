@@ -291,7 +291,7 @@ pub fn Set::by_id(self : Set, id : StringView) -> Jwk? {
 pub fn Set::pick(
   self : Set,
   alg~ : String,
-  id? : String? = None,
+  id? : String,
   usage? : String? = Some("sig"),
   first? : Bool = false,
 ) -> Jwk? {
