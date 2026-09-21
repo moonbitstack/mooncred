@@ -115,6 +115,11 @@ pub let eku_client_auth : String = "1.3.6.1.5.5.7.3.2"
 let oid_ec_key : String = "1.2.840.10045.2.1"
 
 ///|
+/// rsaEncryption (RFC 8017 §A.1), the algorithm a SubjectPublicKeyInfo names
+/// when the key is RSA.
+let oid_rsa : String = "1.2.840.113549.1.1.1"
+
+///|
 let oid_p256 : String = "1.2.840.10045.3.1.7"
 
 ///|
@@ -533,6 +538,16 @@ pub fn parse(der : BytesView) -> Cert raise @asn1.Refused {
 }
 
 ///|
+/// Read a bare SubjectPublicKeyInfo.
+///
+/// A certificate carries one in `Cert::spki`; this is for the ones that travel
+/// on their own — a `PUBLIC KEY` PEM file, or the key MySQL's
+/// `caching_sha2_password` hands a client mid-handshake.
+pub fn Spki::read(der : BytesView) -> Spki raise @asn1.Refused {
+  read_spki(@asn1.only(der))
+}
+
+///|
 /// The P-256 public key a SubjectPublicKeyInfo carries. Refuses any algorithm but id-ecPublicKey
 /// on prime256v1, refuses the compressed and hybrid point forms, and refuses a point that is not
 /// on the curve.
@@ -684,3 +699,74 @@ pub extend Validity with Debug::{to_repr}
 
 ///|
 pub extend Validity with Eq::{not_equal, equal}
+
+///|
+/// The RSA public key a SubjectPublicKeyInfo carries.
+///
+/// The key bits are an `RSAPublicKey ::= SEQUENCE { modulus INTEGER,
+/// publicExponent INTEGER }` (RFC 8017 §A.1.1). Refuses any algorithm but
+/// rsaEncryption.
+///
+/// `digest` and `scheme` are the signature parameters the key is built with.
+/// They do not enter encryption at all — `@rsa.PublicKey::encrypt` takes its
+/// own — so a caller that only encrypts can leave them alone.
+pub fn Spki::rsa(
+  self : Spki,
+  digest? : @rsa.Digest = Sha256,
+  scheme? : @rsa.Scheme = Pkcs1,
+) -> @rsa.PublicKey raise @asn1.Refused {
+  if self.alg != oid_rsa {
+    raise @asn1.Unsupported("public key algorithm " + self.alg)
+  }
+  if self.key.unused != 0 {
+    raise @asn1.Malformed("public key BIT STRING has unused bits")
+  }
+  let seq = @asn1.only(self.key.bytes[:])
+  if seq.tag != 0x30 {
+    raise @asn1.Malformed("RSAPublicKey is not a SEQUENCE")
+  }
+  let items = seq.items()
+  if items.length() != 2 {
+    raise @asn1.Malformed("RSAPublicKey is not a modulus and an exponent")
+  }
+  let n = items[0].int().to_octets()
+  let e = items[1].int().to_octets()
+  @rsa.PublicKey::new(n[:], e[:], digest~, scheme~) catch {
+    _ => raise @asn1.Malformed("RSAPublicKey carries an unusable modulus")
+  }
+}
+
+///|
+/// The DER inside a PEM envelope (RFC 7468).
+///
+/// Everything outside the `-----BEGIN ...-----` and `-----END ...-----` lines
+/// is dropped and the rest is base64-decoded. The label is not checked: what
+/// the octets are is the caller's question, and a `CERTIFICATE` and a
+/// `PUBLIC KEY` reach different readers from here.
+///
+/// Whitespace inside the body is ignored, which is what RFC 7468 §2 asks of a
+/// parser and what makes a CRLF file read the same as an LF one.
+pub fn pem(text : String) -> Bytes raise @asn1.Refused {
+  let body = StringBuilder()
+  let mut opened = false
+  let mut closed = false
+  for line in text.split("\n") {
+    let l = line.to_owned()
+    if l.has_prefix("-----BEGIN") {
+      opened = true
+    } else if l.has_prefix("-----END") {
+      closed = true
+      break
+    } else if opened {
+      body.write_string(l)
+    }
+  }
+  if !opened || !closed {
+    raise @asn1.Malformed("not a PEM envelope")
+  }
+  let der = @base64.decode_lossy(body.to_string())
+  if der.length() == 0 {
+    raise @asn1.Malformed("PEM envelope carries no DER")
+  }
+  der
+}

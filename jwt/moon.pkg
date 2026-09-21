@@ -19,6 +19,6 @@ import {
   "moonbitstack/mooncrypt/mac/hmac",
   "moonbitstack/mooncrypt/sign/ed25519",
   "moonbitstack/mooncrypt/sign/ecdsa",
-  "moonbitstack/mooncrypt/sign/rsa",
+  "moonbitstack/mooncrypt/rsa",
   "moonbitstack/moonbase/base16",
 } for "test"

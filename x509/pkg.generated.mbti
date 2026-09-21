@@ -5,6 +5,7 @@ import {
   "moonbitlang/core/bigint",
   "moonbitlang/core/debug",
   "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/rsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
 }
 
@@ -24,6 +25,8 @@ pub let eku_server_auth : String
 pub let oid_cn : String
 
 pub fn parse(BytesView) -> Cert raise @asn1.Refused
+
+pub fn pem(String) -> Bytes raise @asn1.Refused
 
 pub fn self_signed(@ecdsa.PrivateKey, Bytes, String, String, String) -> Bytes
 
@@ -101,6 +104,8 @@ pub(all) struct Spki {
 pub fn Spki::equal(Self, Self) -> Bool
 pub fn Spki::not_equal(Self, Self) -> Bool
 pub fn Spki::p256(Self) -> @ecdsa.PublicKey raise @asn1.Refused
+pub fn Spki::read(BytesView) -> Self raise @asn1.Refused
+pub fn Spki::rsa(Self, digest? : @rsa.Digest, scheme? : @rsa.Scheme) -> @rsa.PublicKey raise @asn1.Refused
 pub fn Spki::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Validity {
