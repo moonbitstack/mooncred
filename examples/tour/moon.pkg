@@ -1,0 +1,11 @@
+// Issuing and checking a token, end to end: `moon run examples/tour`.
+pkgtype(kind: "executable")
+
+import {
+  "moonbitstack/mooncred/jwt",
+  "moonbitstack/mooncred/jwk",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/sign/ed25519",
+  "moonbitstack/moonjson/json",
+}

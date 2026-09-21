@@ -1,0 +1,52 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/jwk"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub(all) suberror Bad {
+  Shape(String)
+  Missing(field~ : String)
+  NotBase64(field~ : String)
+  Unknown(kty~ : String)
+} derive(Eq, @debug.Debug)
+pub fn Bad::equal(Self, Self) -> Bool
+pub fn Bad::not_equal(Self, Self) -> Bool
+pub fn Bad::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+type Jwk
+pub fn Jwk::alg(Self) -> String?
+pub fn Jwk::id(Self) -> String?
+pub fn Jwk::is_private(Self) -> Bool
+pub fn Jwk::json(Self, secret? : Bool) -> Json
+pub fn Jwk::material(Self) -> Material
+pub fn Jwk::ops(Self) -> Array[String]
+pub fn Jwk::parse(StringView) -> Self raise Bad
+pub fn Jwk::read(Json) -> Self raise Bad
+pub fn Jwk::usage(Self) -> String?
+
+pub(all) enum Material {
+  Oct(key~ : Bytes)
+  Rsa(modulus~ : Bytes, exponent~ : Bytes, secret~ : Bytes?)
+  Ec(curve~ : String, x~ : Bytes, y~ : Bytes, secret~ : Bytes?)
+  Okp(curve~ : String, x~ : Bytes, secret~ : Bytes?)
+} derive(Eq, @debug.Debug)
+pub fn Material::equal(Self, Self) -> Bool
+pub fn Material::not_equal(Self, Self) -> Bool
+pub fn Material::to_repr(Self) -> @debug.Repr
+
+type Set
+pub fn Set::by_id(Self, StringView) -> Jwk?
+pub fn Set::keys(Self) -> Array[Jwk]
+pub fn Set::parse(StringView) -> Self raise Bad
+pub fn Set::pick(Self, alg~ : String, id? : String?) -> Jwk?
+pub fn Set::read(Json) -> Self raise Bad
+
+// Type aliases
+
+// Traits

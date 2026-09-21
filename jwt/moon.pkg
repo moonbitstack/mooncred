@@ -1,0 +1,24 @@
+// JSON Web Signature, RFC 7515: https://www.rfc-editor.org/rfc/rfc7515
+// JSON Web Algorithms, RFC 7518: https://www.rfc-editor.org/rfc/rfc7518
+// JSON Web Token, RFC 7519: https://www.rfc-editor.org/rfc/rfc7519
+// EdDSA for JOSE, RFC 8037: https://www.rfc-editor.org/rfc/rfc8037
+//
+// Only the compact serialisation, which is the one tokens are written in.
+// Signing and verification go through `mooncrypt/spec`'s contracts, never
+// through a particular algorithm, so a program that only issues HS256 tokens
+// does not link an elliptic curve.
+import {
+  "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonbase/base64",
+  "moonbitstack/moonjson/json",
+  "moonbitlang/core/encoding/utf8",
+}
+
+import {
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/sign/ed25519",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/sign/rsa",
+  "moonbitstack/moonbase/base16",
+} for "test"

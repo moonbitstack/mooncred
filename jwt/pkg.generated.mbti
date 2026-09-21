@@ -1,0 +1,64 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/jwt"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitstack/mooncrypt/spec",
+}
+
+// Values
+pub fn claims_unverified(StringView) -> Map[String, Json] raise Rejected
+
+pub fn header(StringView) -> Map[String, Json] raise Rejected
+
+pub fn mac(() -> &@spec.Mac) -> Keyed
+
+pub fn sign(Map[String, Json], Alg, &@spec.Signer, extra? : Map[String, Json]) -> String
+
+pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Int64, leeway? : Int64, issuer? : String?, audience? : String?) -> Map[String, Json] raise Rejected
+
+// Errors
+pub(all) suberror Rejected {
+  Shape(String)
+  Algorithm(want~ : String, got~ : String)
+  Signature
+  Expired(at~ : Double)
+  TooEarly(at~ : Double)
+  Issuer(want~ : String, got~ : String)
+  Audience(want~ : String)
+} derive(Eq, @debug.Debug)
+pub fn Rejected::equal(Self, Self) -> Bool
+pub fn Rejected::not_equal(Self, Self) -> Bool
+pub fn Rejected::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) enum Alg {
+  HS256
+  HS384
+  HS512
+  RS256
+  RS384
+  RS512
+  PS256
+  PS384
+  PS512
+  ES256
+  ES384
+  ES512
+  EdDSA
+} derive(Eq, @debug.Debug)
+pub fn Alg::equal(Self, Self) -> Bool
+pub fn Alg::name(Self) -> String
+pub fn Alg::not_equal(Self, Self) -> Bool
+pub fn Alg::of(StringView) -> Self raise Rejected
+pub fn Alg::to_repr(Self) -> @debug.Repr
+
+type Keyed
+pub fn Keyed::sign(Self, BytesView) -> Bytes
+pub fn Keyed::verify(Self, BytesView, BytesView) -> Bool
+pub impl @spec.Signer for Keyed
+pub impl @spec.Verifier for Keyed
+
+// Type aliases
+
+// Traits
