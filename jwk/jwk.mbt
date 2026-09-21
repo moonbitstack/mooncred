@@ -229,8 +229,9 @@ struct Set {
 ///
 /// A key the reader does not understand is skipped rather than fatal: RFC 7517
 /// §5.1 says so, and a set that grows a post-quantum key must not stop every
-/// verifier that has not heard of it.
-pub fn Set::read(value : Json) -> Set raise Bad {
+/// verifier that has not heard of it. `skip` turns that off for a caller who
+/// would rather hear about it.
+pub fn Set::read(value : Json, skip? : Bool = true) -> Set raise Bad {
   let members = match value {
     Object(members) => members
     _ => raise Shape("a JWK set is a JSON object")
@@ -241,8 +242,12 @@ pub fn Set::read(value : Json) -> Set raise Bad {
   }
   let keys : Array[Jwk] = []
   for item in listed {
-    keys.push(Jwk::read(item)) catch {
-      _ => ()
+    if skip {
+      keys.push(Jwk::read(item)) catch {
+        _ => ()
+      }
+    } else {
+      keys.push(Jwk::read(item))
     }
   }
   { keys, }
@@ -250,8 +255,8 @@ pub fn Set::read(value : Json) -> Set raise Bad {
 
 ///|
 /// Read a set from its JSON text.
-pub fn Set::parse(text : StringView) -> Set raise Bad {
-  Set::read(document(text))
+pub fn Set::parse(text : StringView, skip? : Bool = true) -> Set raise Bad {
+  Set::read(document(text), skip~)
 }
 
 ///|
@@ -278,22 +283,34 @@ pub fn Set::by_id(self : Set, id : StringView) -> Jwk? {
 /// A key that says nothing about its algorithm is a candidate for any; one that
 /// names a different algorithm, or is marked for encryption, is not. When
 /// several remain, none is returned — picking one arbitrarily is how a rotated
-/// key silently keeps verifying.
-pub fn Set::pick(self : Set, alg~ : String, id? : String? = None) -> Jwk? {
+/// key silently keeps verifying — and `first` is how a caller asks for the
+/// other behaviour.
+///
+/// `usage` is the `use` a candidate must carry when it carries one; `"sig"` is
+/// the default because this is a signature library. `None` accepts any.
+pub fn Set::pick(
+  self : Set,
+  alg~ : String,
+  id? : String? = None,
+  usage? : String? = Some("sig"),
+  first? : Bool = false,
+) -> Jwk? {
   match id {
     Some(name) =>
       match self.by_id(name[:]) {
-        Some(key) => if suits(key, alg) { Some(key) } else { None }
+        Some(key) => if suits(key, alg, usage) { Some(key) } else { None }
         None => None
       }
     None => {
       let mut found : Jwk? = None
       for key in self.keys {
-        if suits(key, alg) {
-          if found is Some(_) {
+        if suits(key, alg, usage) {
+          if found is Some(_) && !first {
             return None
           }
-          found = Some(key)
+          if found is None {
+            found = Some(key)
+          }
         }
       }
       found
@@ -302,8 +319,8 @@ pub fn Set::pick(self : Set, alg~ : String, id? : String? = None) -> Jwk? {
 }
 
 ///|
-fn suits(key : Jwk, alg : String) -> Bool {
-  if key.usage is Some(usage) && usage != "sig" {
+fn suits(key : Jwk, alg : String, want : String?) -> Bool {
+  if want is Some(kind) && key.usage is Some(usage) && usage != kind {
     return false
   }
   if key.ops.length() > 0 &&

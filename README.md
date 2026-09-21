@@ -39,6 +39,51 @@ for the two attacks that have defeated JWT libraries repeatedly:
 `header` reads the unverified header, for one purpose: getting `kid` so the
 right key can be fetched before anything is verified.
 
+## Configuration precedence
+
+Everything a verification checks is a setting, and every setting can be given
+two ways: in a `Policy` assembled once for a deployment, or as an argument to
+the call in front of you. There are three layers, each overriding the one
+before:
+
+```
+@jwt.policy        <        the policy you pass        <        the arguments you pass
+```
+
+The per-call argument wins by default because it is the more specific of the
+two — the same rule [Axios](https://axios-http.com/docs/config_defaults),
+[Terraform](https://developer.hashicorp.com/terraform/language/values/variables)
+and [Spring Boot](https://docs.spring.io/spring-boot/reference/features/external-config.html)
+use for the same question.
+
+Both of those are parameters too:
+
+- `wins` turns the last two layers around. `Base` makes the policy
+  authoritative and the arguments advisory.
+- `clash` decides what happens when a setting is given twice: `Ignore` merges
+  quietly, `Panic` refuses, and `Handle(f)` gives your function the base and the
+  merged result and takes whichever it returns.
+
+```moonbit
+// A policy for the deployment, assembled once.
+let ours = @jwt.Policy::new(issuer=Some("moonbitstack"), audience=["moonapi"])
+// The same thing written as a record update.
+let ours : @jwt.Policy = { ..@jwt.policy, issuer: Some("moonbitstack") }
+
+// Used as it is, and used with one thing changed for this call.
+@jwt.verify(token[:], HS256, key, now=At(seconds), policy=ours)
+@jwt.verify(token[:], HS256, key, now=At(seconds), policy=ours, leeway=60L)
+
+// Reading a token without asking whether it has expired.
+@jwt.verify(token[:], HS256, key, now=Ignored)
+```
+
+`now` is not configuration but data, so it is always an argument and never a
+policy field.
+
+The same three layers, the same two switches and the same words appear wherever
+this ecosystem takes a configuration record.
+
 ## Keys are contracts, not implementations
 
 Signing takes anything implementing `mooncrypt/spec`'s `Signer`; verification,

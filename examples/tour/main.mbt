@@ -27,20 +27,41 @@ fn main raise {
     token[:],
     HS256,
     hs,
-    now~,
-    issuer=Some("moonbitstack"),
-    audience=Some("moonapi"),
+    now=At(now),
+    issuer="moonbitstack",
+    audience=["moonapi"],
   )
   println("HS256 subject -> \{@json.write(got.get("sub").unwrap())}")
 
   // The attack this refuses: the same bytes, read as another algorithm.
-  try @jwt.verify(token[:], HS384, hs, now~) |> ignore catch {
+  try @jwt.verify(token[:], HS384, hs, now=At(now)) |> ignore catch {
     Algorithm(want~, got~) =>
       println("confusion     -> refused: \{got} is not \{want}")
     _ => println("confusion     -> refused")
   } noraise {
     _ => println("confusion     -> accepted, which would be the bug")
   }
+
+  // Reading a token without asking whether it has expired: a debugging tool, an
+  // audit of tokens already collected, a migration that must read last year's.
+  let stale = @jwt.sign(
+    {
+      let old : Map[String, Json] = Map([])
+      old["sub"] = Json::string("heke1228")
+      old["exp"] = Json::number(1000.0, repr="1000")
+      old
+    },
+    HS256,
+    hs,
+  )
+  try @jwt.verify(stale[:], HS256, hs, now=At(now)) |> ignore catch {
+    Expired(at~) => println("expired       -> refused at \{at}")
+    _ => println("expired       -> refused")
+  } noraise {
+    _ => println("expired       -> accepted, which would be the bug")
+  }
+  let forced = @jwt.verify(stale[:], HS256, hs, now=Ignored)
+  println("ignored time  -> \{@json.write(forced.get("sub").unwrap())}")
 
   // EdDSA, with the key read from a JWK as a server would read it.
   let key = @jwk.Jwk::parse(
@@ -58,7 +79,7 @@ fn main raise {
         "kid           -> \{@json.write(@jwt.header(signed[:]).get("kid").unwrap())}",
       )
       let pk = @ed25519.PublicKey::new(x[:])
-      @jwt.verify(signed[:], EdDSA, pk, now~) |> ignore
+      @jwt.verify(signed[:], EdDSA, pk, now=At(now)) |> ignore
       println("EdDSA ok      -> true")
       // What a key set may be published as: the public half only.
       println("published     -> \{@json.write(key.json())}")

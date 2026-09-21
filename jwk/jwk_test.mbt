@@ -233,3 +233,35 @@ test "key_ops narrows a key" {
   assert_true(keys.pick(alg="HS256", id=Some("signing")) is Some(_))
   assert_true(keys.pick(alg="HS256") is Some(_))
 }
+
+///|
+/// Reading a set skips what it cannot understand by default, which is what
+/// RFC 7517 §5.1 says; `skip=false` is how a caller asks to hear about it.
+test "skipping unknown keys is a knob" {
+  let mixed =
+    #|{"keys":[{"kty":"MLDSA","pub":"…"},{"kty":"oct","k":"AAAA","kid":"known"}]}
+  assert_eq(@jwk.Set::parse(mixed[:]).keys().length(), 1)
+  try @jwk.Set::parse(mixed[:], skip=false) |> ignore catch {
+    e => assert_eq(e, Unknown(kty="MLDSA"))
+  } noraise {
+    _ => fail("an unreadable key passed with skip=false")
+  }
+}
+
+///|
+/// Which `use` a candidate must carry, and what to do when several match: both
+/// are the caller's, and both default to the careful answer.
+test "picking is a knob" {
+  let set = @jwk.Set::parse(public_set[:])
+  // `kid` "1" is marked for encryption, so it is out by default…
+  assert_true(set.pick(alg="RS256", id=Some("1")) is None)
+  // …and in when the caller is not filtering on `use`.
+  assert_true(set.pick(alg="RS256", id=Some("1"), usage=None) is Some(_))
+  assert_true(set.pick(alg="ES256", id=Some("1"), usage=Some("enc")) is Some(_))
+  let two =
+    #|{"keys":[{"kty":"oct","k":"AAAA","kid":"a"},{"kty":"oct","k":"BBBB","kid":"b"}]}
+  let ambiguous = @jwk.Set::parse(two[:])
+  // Two candidates and no `kid`: none by default, the first on request.
+  assert_true(ambiguous.pick(alg="HS256") is None)
+  assert_eq(ambiguous.pick(alg="HS256", first=true).unwrap().id(), Some("a"))
+}

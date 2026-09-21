@@ -43,9 +43,9 @@ pub fn Material::to_repr(Self) -> @debug.Repr
 type Set
 pub fn Set::by_id(Self, StringView) -> Jwk?
 pub fn Set::keys(Self) -> Array[Jwk]
-pub fn Set::parse(StringView) -> Self raise Bad
-pub fn Set::pick(Self, alg~ : String, id? : String?) -> Jwk?
-pub fn Set::read(Json) -> Self raise Bad
+pub fn Set::parse(StringView, skip? : Bool) -> Self raise Bad
+pub fn Set::pick(Self, alg~ : String, id? : String?, usage? : String?, first? : Bool) -> Jwk?
+pub fn Set::read(Json, skip? : Bool) -> Self raise Bad
 
 // Type aliases
 

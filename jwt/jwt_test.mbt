@@ -197,7 +197,7 @@ test "every JOSE algorithm against a third-party signer" {
   for case in cases {
     let (name, token, exact) = case
     let alg = @jwt.Alg::of(name[:])
-    let got = @jwt.verify(token[:], alg, verifier(alg), now=1700000000L)
+    let got = @jwt.verify(token[:], alg, verifier(alg), now=At(1700000000L))
     assert_eq(got.get("sub"), Some(Json::string("1234567890")))
     assert_eq(got.get("scope"), Some(Json::string("read write")))
     if exact {
@@ -205,7 +205,7 @@ test "every JOSE algorithm against a third-party signer" {
     }
     // Ours must verify under theirs' key either way.
     let ours = @jwt.sign(claims(), alg, signer(alg))
-    @jwt.verify(ours[:], alg, verifier(alg), now=1700000000L) |> ignore
+    @jwt.verify(ours[:], alg, verifier(alg), now=At(1700000000L)) |> ignore
   }
 }
 
@@ -221,11 +221,11 @@ test "the RFC 7515 A.1 example" {
   let token = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
   let hs = @jwt.mac(fn() { @hmac.Hmac::new(key[:], sha(256)) })
   // The token expired in 2011, so it is read at a time when it had not.
-  let got = @jwt.verify(token[:], HS256, hs, now=1300000000L)
+  let got = @jwt.verify(token[:], HS256, hs, now=At(1300000000L))
   assert_eq(got.get("iss"), Some(Json::string("joe")))
   assert_eq(got.get("http://example.com/is_root"), Some(Json::boolean(true)))
   // And it is expired now, which is what the claim is for.
-  try @jwt.verify(token[:], HS256, hs, now=1700000000L) |> ignore catch {
+  try @jwt.verify(token[:], HS256, hs, now=At(1700000000L)) |> ignore catch {
     e => assert_eq(e, @jwt.Expired(at=1300819380.0))
   } noraise {
     _ => fail("an expired token was accepted")
@@ -240,7 +240,7 @@ test "the algorithm is the verifier's, not the token's" {
   let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
   let token = @jwt.sign(claims(), HS256, hs)
   // The same bytes, read as a different algorithm.
-  try @jwt.verify(token[:], HS384, hs, now=1700000000L) |> ignore catch {
+  try @jwt.verify(token[:], HS384, hs, now=At(1700000000L)) |> ignore catch {
     e => assert_eq(e, @jwt.Algorithm(want="HS384", got="HS256"))
   } noraise {
     _ => fail("HS256 was accepted as HS384")
@@ -253,7 +253,7 @@ test "the algorithm is the verifier's, not the token's" {
   )
   let body = @base64.encode(b"{\"sub\":\"admin\"}"[:], kind=Url, padding=false)
   let forged = head + "." + body + "."
-  try @jwt.verify(forged[:], HS256, hs, now=1700000000L) |> ignore catch {
+  try @jwt.verify(forged[:], HS256, hs, now=At(1700000000L)) |> ignore catch {
     e => assert_true(e is @jwt.Shape(_) || e is @jwt.Algorithm(_))
   } noraise {
     _ => fail("a token with no signature was accepted")
@@ -273,14 +273,14 @@ test "a tampered token is refused" {
   let token = @jwt.sign(claims(), HS256, hs)
   let cut = token.rev_find(".").unwrap()
   let bent = token[0:cut].to_owned() + ".AAAA"
-  try @jwt.verify(bent[:], HS256, hs, now=1700000000L) |> ignore catch {
+  try @jwt.verify(bent[:], HS256, hs, now=At(1700000000L)) |> ignore catch {
     e => assert_eq(e, @jwt.Signature)
   } noraise {
     _ => fail("a replaced signature was accepted")
   }
   // A different key does not verify what this one signed.
   let other = @jwt.mac(fn() { @hmac.Hmac::new(b"wrong"[:], sha(256)) })
-  try @jwt.verify(token[:], HS256, other, now=1700000000L) |> ignore catch {
+  try @jwt.verify(token[:], HS256, other, now=At(1700000000L)) |> ignore catch {
     e => assert_eq(e, @jwt.Signature)
   } noraise {
     _ => fail("another key verified the token")
@@ -296,25 +296,25 @@ test "expiry and not-before" {
   timed["exp"] = Json::number(2000.0, repr="2000")
   timed["nbf"] = Json::number(1000.0, repr="1000")
   let token = @jwt.sign(timed, HS256, hs)
-  @jwt.verify(token[:], HS256, hs, now=1500L) |> ignore
-  @jwt.verify(token[:], HS256, hs, now=1000L) |> ignore
-  @jwt.verify(token[:], HS256, hs, now=1999L) |> ignore
-  try @jwt.verify(token[:], HS256, hs, now=2000L) |> ignore catch {
+  @jwt.verify(token[:], HS256, hs, now=At(1500L)) |> ignore
+  @jwt.verify(token[:], HS256, hs, now=At(1000L)) |> ignore
+  @jwt.verify(token[:], HS256, hs, now=At(1999L)) |> ignore
+  try @jwt.verify(token[:], HS256, hs, now=At(2000L)) |> ignore catch {
     e => assert_eq(e, @jwt.Expired(at=2000.0))
   } noraise {
     _ => fail("a token was accepted at the second it expired")
   }
-  try @jwt.verify(token[:], HS256, hs, now=999L) |> ignore catch {
+  try @jwt.verify(token[:], HS256, hs, now=At(999L)) |> ignore catch {
     e => assert_eq(e, @jwt.TooEarly(at=1000.0))
   } noraise {
     _ => fail("a token was accepted before it began")
   }
   // Leeway widens both edges and nothing else.
-  @jwt.verify(token[:], HS256, hs, now=2030L, leeway=60L) |> ignore
-  @jwt.verify(token[:], HS256, hs, now=950L, leeway=60L) |> ignore
+  @jwt.verify(token[:], HS256, hs, now=At(2030L), leeway=60L) |> ignore
+  @jwt.verify(token[:], HS256, hs, now=At(950L), leeway=60L) |> ignore
   // A token with neither claim never expires, which is the caller's problem.
   let forever = @jwt.sign(Map([]), HS256, hs)
-  @jwt.verify(forever[:], HS256, hs, now=99999999L) |> ignore
+  @jwt.verify(forever[:], HS256, hs, now=At(99999999L)) |> ignore
 }
 
 ///|
@@ -322,17 +322,12 @@ test "expiry and not-before" {
 test "issuer and audience" {
   let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
   let token = @jwt.sign(claims(), HS256, hs)
-  @jwt.verify(
-    token[:],
-    HS256,
-    hs,
-    now=1700000000L,
-    issuer=Some("moonbitstack"),
-    audience=Some("moonapi"),
-  )
+  @jwt.verify(token[:], HS256, hs, now=At(1700000000L), issuer="moonbitstack", audience=[
+    "moonapi",
+  ])
   |> ignore
   try
-    @jwt.verify(token[:], HS256, hs, now=1700000000L, issuer=Some("someone"))
+    @jwt.verify(token[:], HS256, hs, now=At(1700000000L), issuer="someone")
     |> ignore
   catch {
     e => assert_eq(e, @jwt.Issuer(want="someone", got="moonbitstack"))
@@ -340,16 +335,10 @@ test "issuer and audience" {
     _ => fail("a token from the wrong issuer was accepted")
   }
   try
-    @jwt.verify(
-      token[:],
-      HS256,
-      hs,
-      now=1700000000L,
-      audience=Some("elsewhere"),
-    )
+    @jwt.verify(token[:], HS256, hs, now=At(1700000000L), audience=["elsewhere"])
     |> ignore
   catch {
-    e => assert_eq(e, @jwt.Audience(want="elsewhere"))
+    e => assert_eq(e, @jwt.Audience(want=["elsewhere"]))
   } noraise {
     _ => fail("a token for another audience was accepted")
   }
@@ -357,11 +346,11 @@ test "issuer and audience" {
   let many : Map[String, Json] = Map([])
   many["aud"] = Json::array([Json::string("a"), Json::string("b")])
   let list = @jwt.sign(many, HS256, hs)
-  @jwt.verify(list[:], HS256, hs, now=0L, audience=Some("b")) |> ignore
+  @jwt.verify(list[:], HS256, hs, now=At(0L), audience=["b"]) |> ignore
   try
-    @jwt.verify(list[:], HS256, hs, now=0L, audience=Some("c")) |> ignore
+    @jwt.verify(list[:], HS256, hs, now=At(0L), audience=["c"]) |> ignore
   catch {
-    e => assert_eq(e, @jwt.Audience(want="c"))
+    e => assert_eq(e, @jwt.Audience(want=["c"]))
   } noraise {
     _ => fail("a token for another audience was accepted")
   }
@@ -376,7 +365,7 @@ test "a malformed token is refused" {
     "eyJhbGciOiJIUzI1NiJ9.!!!.sig",
   ]
   for text in bad {
-    try @jwt.verify(text[:], HS256, hs, now=0L) |> ignore catch {
+    try @jwt.verify(text[:], HS256, hs, now=At(0L)) |> ignore catch {
       _ => ()
     } noraise {
       _ => fail("\{text} was read as a token")
@@ -385,7 +374,7 @@ test "a malformed token is refused" {
   // A header that decodes but is not an object.
   let head = @base64.encode(b"[1]"[:], kind=Url, padding=false)
   let token = head + ".eyJhIjoxfQ.sig"
-  try @jwt.verify(token[:], HS256, hs, now=0L) |> ignore catch {
+  try @jwt.verify(token[:], HS256, hs, now=At(0L)) |> ignore catch {
     e => assert_true(e is @jwt.Shape(_))
   } noraise {
     _ => fail("a header that is not an object was accepted")
@@ -408,4 +397,350 @@ test "the header can be read before the key is chosen" {
     @jwt.claims_unverified(token[:]).get("sub"),
     Some(Json::string("1234567890")),
   )
+}
+
+///|
+/// Every check is a named argument, and the defaults are what the mainstream
+/// libraries do. This pins each one, in both positions.
+test "every check is a knob" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let timed : Map[String, Json] = Map([])
+  timed["exp"] = Json::number(2000.0, repr="2000")
+  timed["nbf"] = Json::number(1000.0, repr="1000")
+  timed["iat"] = Json::number(1000.0, repr="1000")
+  timed["iss"] = Json::string("moonbitstack")
+  timed["aud"] = Json::string("moonapi")
+  timed["sub"] = Json::string("heke1228")
+  let token = @jwt.sign(timed, HS256, hs)
+
+  // The hard decode: read a token without asking whether it has expired.
+  // Default refuses; `Ignored` is how a caller says otherwise, in writing.
+  try @jwt.verify(token[:], HS256, hs, now=At(9999L)) |> ignore catch {
+    e => assert_eq(e, @jwt.Expired(at=2000.0))
+  } noraise {
+    _ => fail("an expired token was accepted by default")
+  }
+  assert_eq(
+    @jwt.verify(token[:], HS256, hs, now=Ignored).get("sub"),
+    Some(Json::string("heke1228")),
+  )
+  // And the same with the two checks turned off one at a time.
+  @jwt.verify(token[:], HS256, hs, now=At(9999L), expiry=false) |> ignore
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=At(0L),
+    policy=@jwt.Policy::new(not_before=false),
+  )
+  |> ignore
+
+  // `iat` is not checked by default — a token issued a second into the future
+  // by a fast clock is not an attack, and no mainstream library refuses it.
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=At(500L),
+    policy=@jwt.Policy::new(not_before=false),
+  )
+  |> ignore
+  try
+    @jwt.verify(
+      token[:],
+      HS256,
+      hs,
+      now=At(500L),
+      policy=@jwt.Policy::new(not_before=false, issued_at=true),
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.IssuedAt(at=1000.0))
+  } noraise {
+    _ => fail("`iat` in the future was accepted with the check on")
+  }
+
+  // `sub`, checked only when the caller says what to expect.
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=Ignored,
+    policy=@jwt.Policy::new(subject=Some("heke1228")),
+  )
+  |> ignore
+  try
+    @jwt.verify(
+      token[:],
+      HS256,
+      hs,
+      now=Ignored,
+      policy=@jwt.Policy::new(subject=Some("somebody")),
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Subject(want="somebody", got="heke1228"))
+  } noraise {
+    _ => fail("another subject was accepted")
+  }
+
+  // Several audiences: one deployment behind several names is ordinary.
+  @jwt.verify(token[:], HS256, hs, now=Ignored, audience=["other", "moonapi"])
+  |> ignore
+  try
+    @jwt.verify(token[:], HS256, hs, now=Ignored, audience=["a", "b"]) |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Audience(want=["a", "b"]))
+  } noraise {
+    _ => fail("a token for another audience was accepted")
+  }
+
+  // Claims the caller requires. RFC 7519 makes none mandatory, so this is empty
+  // by default.
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=Ignored,
+    policy=@jwt.Policy::new(required=["sub", "iss"]),
+  )
+  |> ignore
+  try
+    @jwt.verify(
+      token[:],
+      HS256,
+      hs,
+      now=Ignored,
+      policy=@jwt.Policy::new(required=["jti"]),
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Missing(claim="jti"))
+  } noraise {
+    _ => fail("a missing required claim was accepted")
+  }
+}
+
+///|
+/// The header's `typ`: written by default because every library writes it,
+/// omitted or replaced on request, and checked only when the caller names one.
+test "the typ header is a knob at both ends" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = @jwt.sign(claims(), HS256, hs)
+  assert_eq(@jwt.header(token[:]).get("typ"), Some(Json::string("JWT")))
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=Ignored,
+    policy=@jwt.Policy::new(typ=Some("jwt")),
+  )
+  |> ignore
+  try
+    @jwt.verify(
+      token[:],
+      HS256,
+      hs,
+      now=Ignored,
+      policy=@jwt.Policy::new(typ=Some("at+jwt")),
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Type(want="at+jwt", got="JWT"))
+  } noraise {
+    _ => fail("the wrong typ was accepted")
+  }
+  // RFC 9068's access tokens.
+  let access = @jwt.sign(claims(), HS256, hs, typ=Some("at+jwt"))
+  assert_eq(@jwt.header(access[:]).get("typ"), Some(Json::string("at+jwt")))
+  @jwt.verify(
+    access[:],
+    HS256,
+    hs,
+    now=Ignored,
+    policy=@jwt.Policy::new(typ=Some("at+jwt")),
+  )
+  |> ignore
+  // And a header with no `typ` at all, which RFC 7519 §5.1 permits.
+  let bare = @jwt.sign(claims(), HS256, hs, typ=None)
+  assert_eq(@jwt.header(bare[:]).get("typ"), None)
+  @jwt.verify(bare[:], HS256, hs, now=Ignored) |> ignore
+  try
+    @jwt.verify(
+      bare[:],
+      HS256,
+      hs,
+      now=Ignored,
+      policy=@jwt.Policy::new(typ=Some("JWT")),
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Type(want="JWT", got="none given"))
+  } noraise {
+    _ => fail("a missing typ passed a check for one")
+  }
+}
+
+///|
+/// An expired token, for the precedence tests below.
+fn stale(hs : @jwt.Keyed) -> String {
+  let old : Map[String, Json] = Map([])
+  old["sub"] = Json::string("heke1228")
+  old["exp"] = Json::number(1000.0, repr="1000")
+  @jwt.sign(old, HS256, hs)
+}
+
+///|
+/// Three ways to say the same thing, and they must say the same thing: the
+/// constructor, the record update, and the per-call arguments.
+test "the three forms agree" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let built = @jwt.Policy::new(leeway=60L, expiry=false)
+  let updated : @jwt.Policy = { ..@jwt.policy, leeway: 60L, expiry: false, }
+  assert_eq(built, updated)
+  let token = stale(hs)
+  let by_record = @jwt.verify(token[:], HS256, hs, now=At(9999L), policy=built)
+  let by_params = @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=At(9999L),
+    leeway=60L,
+    expiry=false,
+  )
+  assert_eq(by_record, by_params)
+}
+
+///|
+/// The published precedence, and the switch that turns it around.
+///
+/// The default is that the per-call argument wins, because it is the more
+/// specific of the two — the same rule Axios, Terraform and Spring Boot use.
+test "wins decides which side is authoritative" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = stale(hs)
+  let checking = @jwt.Policy::new(expiry=true)
+  // Default: the argument wins, so the expiry check is off and it passes.
+  @jwt.verify(token[:], HS256, hs, now=At(9999L), policy=checking, expiry=false)
+  |> ignore
+  // wins=Base: the record wins, so the check stays on and it is refused.
+  try
+    @jwt.verify(
+      token[:],
+      HS256,
+      hs,
+      now=At(9999L),
+      policy=checking,
+      expiry=false,
+      wins=Base,
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Expired(at=1000.0))
+  } noraise {
+    _ => fail("wins=Base let the argument override the policy")
+  }
+}
+
+///|
+/// `clash=Handle` receives the base and the merged result and its answer is
+/// final, which is how a caller audits or arbitrates in a way we did not think
+/// of.
+test "clash hands the arbitration over" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = stale(hs)
+  let checking = @jwt.Policy::new(expiry=true)
+  let seen : Array[@jwt.Policy] = []
+  try
+    @jwt.verify(
+      token[:],
+      HS256,
+      hs,
+      now=At(9999L),
+      policy=checking,
+      expiry=false,
+      clash=Handle(fn(base, merged) {
+        seen.push(base)
+        seen.push(merged)
+        base
+      }),
+    )
+    |> ignore
+  catch {
+    e => assert_eq(e, @jwt.Expired(at=1000.0))
+  } noraise {
+    _ => fail("the callback returned the base, which still checks expiry")
+  }
+  // It saw both, and they differ in exactly the field that was overridden.
+  assert_eq(seen.length(), 2)
+  assert_true(seen[0].expiry)
+  assert_false(seen[1].expiry)
+}
+
+///|
+/// With nothing layered over it, there is no clash and `Panic` does not fire.
+test "clash only fires when there is one" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = @jwt.sign(claims(), HS256, hs)
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=Ignored,
+    policy=@jwt.Policy::new(leeway=60L),
+    clash=Panic,
+  )
+  |> ignore
+}
+
+///|
+test "panic clash=Panic refuses to be given two answers" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = @jwt.sign(claims(), HS256, hs)
+  @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=Ignored,
+    policy=@jwt.Policy::new(leeway=1L),
+    leeway=2L,
+    clash=Panic,
+  )
+  |> ignore
+}
+
+///|
+/// The header describes the signature. `extra` may add to it and may not
+/// quietly rewrite it.
+test "panic extra cannot rewrite the algorithm the header declares" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let forged : Map[String, Json] = Map([])
+  forged["alg"] = Json::string("none")
+  @jwt.sign(claims(), HS256, hs, extra=forged) |> ignore
+}
+
+///|
+/// What `extra` is actually for, and the way out for someone who means it.
+test "extra adds to the header, and can be forced to replace" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let named : Map[String, Json] = Map([])
+  named["kid"] = Json::string("2026-09")
+  let token = @jwt.sign(claims(), HS256, hs, extra=named)
+  assert_eq(@jwt.header(token[:]).get("kid"), Some(Json::string("2026-09")))
+  assert_eq(@jwt.header(token[:]).get("alg"), Some(Json::string("HS256")))
+  // Keeping ours without complaining.
+  let forged : Map[String, Json] = Map([])
+  forged["alg"] = Json::string("none")
+  let kept = @jwt.sign(claims(), HS256, hs, extra=forged, clash=Ignore)
+  assert_eq(@jwt.header(kept[:]).get("alg"), Some(Json::string("HS256")))
+  // And letting the caller have what they asked for, in writing.
+  let forced = @jwt.sign(
+    claims(),
+    HS256,
+    hs,
+    extra=forged,
+    wins=Extra,
+    clash=Ignore,
+  )
+  assert_eq(@jwt.header(forced[:]).get("alg"), Some(Json::string("none")))
 }

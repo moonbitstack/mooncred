@@ -71,6 +71,155 @@ pub fn Alg::of(name : StringView) -> Alg raise Rejected {
 }
 
 ///|
+/// When the time claims are measured against.
+///
+/// A library has no clock — reading one is a side effect and there is no reason
+/// for a token verifier to have that power — so the instant comes in from the
+/// caller. `Ignored` is the way to read a token without asking whether it has
+/// expired: a debugging tool, an audit of tokens already collected, a migration
+/// that has to read what was issued last year. It is spelled out at the call
+/// site because the alternative is a verifier that quietly stopped checking.
+pub(all) enum Clock {
+  /// Check `exp` and `nbf` against this instant, in Unix seconds.
+  At(Int64)
+  /// Do not look at the time claims at all.
+  Ignored
+} derive(Eq, Debug)
+
+///|
+pub extend Clock with Eq::{equal, not_equal}
+
+///|
+pub extend Clock with Debug::{to_repr}
+
+///|
+/// Which side wins when a setting is given twice.
+///
+/// Every function here that takes both a base and something layered over it
+/// says which one wins, and lets a caller say otherwise. The defaults differ by
+/// function and each one says why: `verify` lets the override win, because a
+/// per-call argument is more specific than a policy assembled once; `sign` lets
+/// the base win, because the header it computes describes the signature it is
+/// about to make.
+pub(all) enum Wins {
+  /// What the function starts from — the policy record, or the header the
+  /// signer computes.
+  Base
+  /// What is layered over it — the per-call arguments, or the caller's `extra`.
+  Extra
+} derive(Eq, Debug)
+
+///|
+pub extend Wins with Eq::{equal, not_equal}
+
+///|
+pub extend Wins with Debug::{to_repr}
+
+///|
+/// What to do when a setting is given twice.
+///
+/// `Handle` receives the base and the merged result and returns whichever it
+/// wants, so a caller can audit, refuse, or merge some other way entirely.
+///
+/// There is no `Warn`: a library has nowhere to warn to. It arrives when
+/// `moonlog` does.
+pub(all) enum OnClash[T] {
+  /// Merge as `wins` says and say nothing. What every library does today.
+  Ignore
+  /// Abort. For the cases where being given two answers is a mistake in the
+  /// program rather than a choice about configuration.
+  Panic
+  /// Hand the base and the merged result to a function and take what it returns.
+  Handle((T, T) -> T)
+}
+
+///|
+/// What a token has to satisfy beyond its signature.
+///
+/// Every field is a check that is either off or told what to expect, and every
+/// default is what the mainstream libraries do: `exp` and `nbf` are checked,
+/// `iat` is not, and `iss`, `aud`, `sub` and the header's `typ` are looked at
+/// only when the caller says what to expect. Nothing is enforced implicitly and
+/// nothing is skipped implicitly.
+///
+/// One of these is assembled once for a deployment and passed to every
+/// verification, which is what `jsonwebtoken`'s `Validation`, .NET's
+/// `TokenValidationParameters` and `jose`'s options object are for.
+pub(all) struct Policy {
+  /// Seconds of slack on the time checks, for clocks that disagree.
+  leeway : Int64
+  /// Whether to refuse a token whose `exp` has passed.
+  expiry : Bool
+  /// Whether to refuse a token whose `nbf` has not arrived.
+  not_before : Bool
+  /// Whether to refuse a token whose `iat` is in the future. Off by default: a
+  /// token issued a second early by a fast clock is not an attack, and no
+  /// mainstream library refuses it.
+  issued_at : Bool
+  /// What `iss` must say. `None` does not look at it.
+  issuer : String?
+  /// What `aud` must include; any one of them will do, because one deployment
+  /// behind several names is ordinary. Empty does not look at it.
+  audience : Array[String]
+  /// What `sub` must say. `None` does not look at it.
+  subject : String?
+  /// What the header's `typ` must say. `None` does not look at it.
+  typ : String?
+  /// Claims that must be present whatever their value. RFC 7519 makes none of
+  /// them mandatory, so this starts empty.
+  required : Array[String]
+} derive(Eq, Debug)
+
+///|
+pub extend Policy with Eq::{equal, not_equal}
+
+///|
+pub extend Policy with Debug::{to_repr}
+
+///|
+/// The policy a verification uses when the caller does not say otherwise.
+pub let policy : Policy = {
+  leeway: 0,
+  expiry: true,
+  not_before: true,
+  issued_at: false,
+  issuer: None,
+  audience: [],
+  subject: None,
+  typ: None,
+  required: [],
+}
+
+///|
+/// Build a policy by naming the parts that differ from the default.
+///
+/// The same thing can be written `{ ..@jwt.policy, expiry: false }`; this form
+/// exists because a named argument reads better when several parts differ.
+pub fn Policy::new(
+  leeway? : Int64 = policy.leeway,
+  expiry? : Bool = policy.expiry,
+  not_before? : Bool = policy.not_before,
+  issued_at? : Bool = policy.issued_at,
+  issuer? : String? = policy.issuer,
+  audience? : Array[String] = policy.audience,
+  subject? : String? = policy.subject,
+  typ? : String? = policy.typ,
+  required? : Array[String] = policy.required,
+) -> Policy {
+  {
+    leeway,
+    expiry,
+    not_before,
+    issued_at,
+    issuer,
+    audience,
+    subject,
+    typ,
+    required,
+  }
+}
+
+///|
 /// Why a token was not accepted.
 ///
 /// Each reason is separate so a caller can map it to the right answer — an
@@ -90,8 +239,16 @@ pub(all) suberror Rejected {
   TooEarly(at~ : Double)
   /// `iss` is not the expected one.
   Issuer(want~ : String, got~ : String)
-  /// `aud` does not include the expected one.
-  Audience(want~ : String)
+  /// `aud` does not include any of the expected ones.
+  Audience(want~ : Array[String])
+  /// `sub` is not the expected one.
+  Subject(want~ : String, got~ : String)
+  /// `iat` is in the future, when the caller asked for that to be checked.
+  IssuedAt(at~ : Double)
+  /// The header's `typ` is not the expected one, when the caller named it.
+  Type(want~ : String, got~ : String)
+  /// A claim the caller required is absent.
+  Missing(claim~ : String)
 } derive(Eq, Debug)
 
 ///|
@@ -107,21 +264,70 @@ pub extend Rejected with Debug::{to_repr}
 /// usually for, so a verifier can pick the right key out of a set before it
 /// verifies anything.
 ///
+/// `typ` is `"JWT"`, which is what every library writes and what RFC 7519 §5.1
+/// recommends. `None` leaves it out; another string puts that in — RFC 9068's
+/// access tokens want `"at+jwt"`.
+///
+/// **`extra` cannot quietly rewrite `alg` or `typ`.** The header describes the
+/// signature this function is about to make; a token whose header says `none`
+/// while the bytes say HS256 is not a configuration choice, it is a mistake, so
+/// `wins` starts at `Base` and `clash` at `Panic`. A caller who means it can
+/// say `wins=Extra, clash=Ignore`.
+///
 /// The key is whatever can sign; this package never chooses an algorithm's
 /// implementation, so a program that issues only HS256 tokens links only HMAC.
 pub fn sign(
   claims : Map[String, Json],
   alg : Alg,
   key : &@spec.Signer,
+  typ? : String? = Some("JWT"),
   extra? : Map[String, Json] = Map([]),
+  wins? : Wins = Base,
+  clash? : OnClash[Map[String, Json]] = Panic,
 ) -> String {
   let head : Map[String, Json] = Map([])
   head["alg"] = Json::string(alg.name())
-  head["typ"] = Json::string("JWT")
-  for name, value in extra {
-    head[name] = value
+  match typ {
+    Some(kind) => head["typ"] = Json::string(kind)
+    None => ()
   }
-  let input = segment(head) + "." + segment(claims)
+  let over : Map[String, Json] = Map([])
+  for name, value in head {
+    over[name] = value
+  }
+  let taken : Array[String] = []
+  for name, value in extra {
+    if head.get(name) is Some(_) {
+      taken.push(name)
+    }
+    over[name] = value
+  }
+  let merged = if taken.length() == 0 {
+    over
+  } else {
+    let chosen = match wins {
+      Extra => over
+      Base => {
+        let kept : Map[String, Json] = Map([])
+        for name, value in over {
+          kept[name] = value
+        }
+        for name, value in head {
+          kept[name] = value
+        }
+        kept
+      }
+    }
+    match clash {
+      Ignore => chosen
+      Panic =>
+        abort(
+          "jwt: \{taken.join(", ")} in `extra` would rewrite the header this signature is made under",
+        )
+      Handle(arbitrate) => arbitrate(head, chosen)
+    }
+  }
+  let input = segment(merged) + "." + segment(claims)
   input + "." + wrap(key.sign(@utf8.encode(input[:])[:]))
 }
 
@@ -133,21 +339,32 @@ pub fn sign(
 /// used as an HS256 shared secret, and how `none` gets accepted; here the header
 /// must match what the caller already decided, or the token is refused.
 ///
-/// The checks run in this order: three segments; the header's algorithm; the
-/// signature; `exp`; `nbf`; then `iss` and `aud` if the caller named them.
-/// Signature before claims, so a forged token is never read for its contents.
+/// The signature is checked before any claim is read, so a forged token is
+/// never inspected for its contents.
 ///
-/// `now` is a Unix timestamp in seconds — the JWT `NumericDate`. `leeway`
-/// widens both time checks by that many seconds, for clocks that disagree.
+/// Configuration has three layers, each overriding the one before:
+/// `@jwt.policy` < the `policy` given here < the named arguments given here.
+/// `wins` turns the last two around; `clash` decides whether being given a
+/// setting twice is silent, fatal, or yours to arbitrate.
+///
+/// `now` is not configuration but data: the instant the time claims are
+/// measured against, or `Ignored` to read a token without asking whether it has
+/// expired — a debugging tool, an audit of tokens already collected, a
+/// migration that has to read what was issued last year.
 pub fn verify(
   token : StringView,
   alg : Alg,
   key : &@spec.Verifier,
-  now~ : Int64,
-  leeway? : Int64 = 0,
-  issuer? : String? = None,
-  audience? : String? = None,
+  now~ : Clock,
+  policy? : Policy = policy,
+  wins? : Wins = Extra,
+  clash? : OnClash[Policy] = Ignore,
+  leeway? : Int64,
+  expiry? : Bool,
+  issuer? : String,
+  audience? : Array[String],
 ) -> Map[String, Json] raise Rejected {
+  let rules = settle(policy, wins, clash, leeway, expiry, issuer, audience)
   let (first, second) = split(token)
   let head = object(token[0:first], "header")
   match head.get("alg") {
@@ -157,23 +374,49 @@ pub fn verify(
       }
     _ => raise Algorithm(want=alg.name(), got="none given")
   }
+  match rules.typ {
+    Some(want) =>
+      match head.get("typ") {
+        Some(String(got)) =>
+          if !got.equal_ignore_ascii_case(want) {
+            raise Type(want~, got~)
+          }
+        _ => raise Type(want~, got="none given")
+      }
+    None => ()
+  }
   let input = token[0:second]
   let given = unwrap(token[second + 1:], "signature")
   if !key.verify(@utf8.encode(input)[:], given[:]) {
     raise Signature
   }
   let claims = object(token[first + 1:second], "payload")
-  let at = now.to_double()
-  let slack = leeway.to_double()
-  match seconds(claims, "exp") {
-    Some(exp) => if at - slack >= exp { raise Expired(at=exp) }
-    None => ()
+  match now {
+    At(reading) => {
+      let at = reading.to_double()
+      let slack = rules.leeway.to_double()
+      if rules.expiry {
+        match seconds(claims, "exp") {
+          Some(exp) => if at - slack >= exp { raise Expired(at=exp) }
+          None => ()
+        }
+      }
+      if rules.not_before {
+        match seconds(claims, "nbf") {
+          Some(nbf) => if at + slack < nbf { raise TooEarly(at=nbf) }
+          None => ()
+        }
+      }
+      if rules.issued_at {
+        match seconds(claims, "iat") {
+          Some(iat) => if at + slack < iat { raise IssuedAt(at=iat) }
+          None => ()
+        }
+      }
+    }
+    Ignored => ()
   }
-  match seconds(claims, "nbf") {
-    Some(nbf) => if at + slack < nbf { raise TooEarly(at=nbf) }
-    None => ()
-  }
-  match issuer {
+  match rules.issuer {
     Some(want) =>
       match claims.get("iss") {
         Some(String(got)) => if got != want { raise Issuer(want~, got~) }
@@ -181,11 +424,81 @@ pub fn verify(
       }
     None => ()
   }
-  match audience {
-    Some(want) => if !accepts(claims, want) { raise Audience(want~) }
+  if rules.audience.length() > 0 && !accepts(claims, rules.audience) {
+    raise Audience(want=rules.audience)
+  }
+  match rules.subject {
+    Some(want) =>
+      match claims.get("sub") {
+        Some(String(got)) => if got != want { raise Subject(want~, got~) }
+        _ => raise Subject(want~, got="none given")
+      }
     None => ()
   }
+  for claim in rules.required {
+    if claims.get(claim) is None {
+      raise Missing(claim~)
+    }
+  }
   claims
+}
+
+///|
+/// Lay the per-call arguments over the policy, the way `wins` and `clash` say.
+fn settle(
+  base : Policy,
+  wins : Wins,
+  clash : OnClash[Policy],
+  leeway : Int64?,
+  expiry : Bool?,
+  issuer : String?,
+  audience : Array[String]?,
+) -> Policy {
+  let named : Array[String] = []
+  let mut over = base
+  match leeway {
+    Some(value) => {
+      named.push("leeway")
+      over = { ..over, leeway: value, }
+    }
+    None => ()
+  }
+  match expiry {
+    Some(value) => {
+      named.push("expiry")
+      over = { ..over, expiry: value, }
+    }
+    None => ()
+  }
+  match issuer {
+    Some(value) => {
+      named.push("issuer")
+      over = { ..over, issuer: Some(value), }
+    }
+    None => ()
+  }
+  match audience {
+    Some(value) => {
+      named.push("audience")
+      over = { ..over, audience: value, }
+    }
+    None => ()
+  }
+  if named.length() == 0 {
+    return base
+  }
+  let merged = match wins {
+    Extra => over
+    Base => base
+  }
+  match clash {
+    Ignore => merged
+    Panic =>
+      abort(
+        "jwt: \{named.join(", ")} given both in the policy and as an argument",
+      )
+    Handle(arbitrate) => arbitrate(base, merged)
+  }
 }
 
 ///|
@@ -331,13 +644,14 @@ fn seconds(claims : Map[String, Json], name : String) -> Double? {
 }
 
 ///|
-/// `aud` is one string or an array of them (RFC 7519 §4.1.3).
-fn accepts(claims : Map[String, Json], want : String) -> Bool {
+/// `aud` is one string or an array of them (RFC 7519 §4.1.3), and the caller
+/// may accept several: one deployment behind several names is ordinary.
+fn accepts(claims : Map[String, Json], want : Array[String]) -> Bool {
   match claims.get("aud") {
-    Some(String(one)) => one == want
+    Some(String(one)) => want.contains(one)
     Some(Array(many)) => {
       for item in many {
-        if item is String(one) && one == want {
+        if item is String(one) && want.contains(one) {
           return true
         }
       }

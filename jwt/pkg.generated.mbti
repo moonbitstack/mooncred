@@ -13,9 +13,11 @@ pub fn header(StringView) -> Map[String, Json] raise Rejected
 
 pub fn mac(() -> &@spec.Mac) -> Keyed
 
-pub fn sign(Map[String, Json], Alg, &@spec.Signer, extra? : Map[String, Json]) -> String
+pub let policy : Policy
 
-pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Int64, leeway? : Int64, issuer? : String?, audience? : String?) -> Map[String, Json] raise Rejected
+pub fn sign(Map[String, Json], Alg, &@spec.Signer, typ? : String?, extra? : Map[String, Json], wins? : Wins, clash? : OnClash[Map[String, Json]]) -> String
+
+pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, Json] raise Rejected
 
 // Errors
 pub(all) suberror Rejected {
@@ -25,7 +27,11 @@ pub(all) suberror Rejected {
   Expired(at~ : Double)
   TooEarly(at~ : Double)
   Issuer(want~ : String, got~ : String)
-  Audience(want~ : String)
+  Audience(want~ : Array[String])
+  Subject(want~ : String, got~ : String)
+  IssuedAt(at~ : Double)
+  Type(want~ : String, got~ : String)
+  Missing(claim~ : String)
 } derive(Eq, @debug.Debug)
 pub fn Rejected::equal(Self, Self) -> Bool
 pub fn Rejected::not_equal(Self, Self) -> Bool
@@ -53,11 +59,49 @@ pub fn Alg::not_equal(Self, Self) -> Bool
 pub fn Alg::of(StringView) -> Self raise Rejected
 pub fn Alg::to_repr(Self) -> @debug.Repr
 
+pub(all) enum Clock {
+  At(Int64)
+  Ignored
+} derive(Eq, @debug.Debug)
+pub fn Clock::equal(Self, Self) -> Bool
+pub fn Clock::not_equal(Self, Self) -> Bool
+pub fn Clock::to_repr(Self) -> @debug.Repr
+
 type Keyed
 pub fn Keyed::sign(Self, BytesView) -> Bytes
 pub fn Keyed::verify(Self, BytesView, BytesView) -> Bool
 pub impl @spec.Signer for Keyed
 pub impl @spec.Verifier for Keyed
+
+pub(all) enum OnClash[T] {
+  Ignore
+  Panic
+  Handle((T, T) -> T)
+}
+
+pub(all) struct Policy {
+  leeway : Int64
+  expiry : Bool
+  not_before : Bool
+  issued_at : Bool
+  issuer : String?
+  audience : Array[String]
+  subject : String?
+  typ : String?
+  required : Array[String]
+} derive(Eq, @debug.Debug)
+pub fn Policy::equal(Self, Self) -> Bool
+pub fn Policy::new(leeway? : Int64, expiry? : Bool, not_before? : Bool, issued_at? : Bool, issuer? : String?, audience? : Array[String], subject? : String?, typ? : String?, required? : Array[String]) -> Self
+pub fn Policy::not_equal(Self, Self) -> Bool
+pub fn Policy::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Wins {
+  Base
+  Extra
+} derive(Eq, @debug.Debug)
+pub fn Wins::equal(Self, Self) -> Bool
+pub fn Wins::not_equal(Self, Self) -> Bool
+pub fn Wins::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
