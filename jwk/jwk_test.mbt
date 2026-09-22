@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 ///|
-fn hex(b : Bytes) -> String {
-  @base16.encode(b[:])
-}
-
-///|
 /// The public key set of RFC 7517 §A.1, printed as the RFC prints it.
 let public_set : String =
   #|{"keys":
@@ -61,11 +56,11 @@ test "the RFC 7517 A.1 public set" {
     Ec(curve~, x~, y~, secret~) => {
       assert_eq(curve, "P-256")
       assert_eq(
-        hex(x),
+        @base16.encode(x),
         "30a0424cd21c2944838a2d75c92b37e76ea20d9f00893a3b4eee8a3c0aafec3e",
       )
       assert_eq(
-        hex(y),
+        @base16.encode(y),
         "e04b65e92456d9888b52b379bdfbd51ee869ef1f0fc65b6659695b6cce081723",
       )
       assert_eq(secret, None)
@@ -77,7 +72,7 @@ test "the RFC 7517 A.1 public set" {
   match key.material() {
     Rsa(modulus~, exponent~, secret~) => {
       assert_eq(modulus.length(), 256)
-      assert_eq(hex(exponent), "010001")
+      assert_eq(@base16.encode(exponent), "010001")
       assert_eq(secret, None)
     }
     _ => fail("the RSA key did not read as one")
@@ -89,7 +84,8 @@ test "the RFC 7517 A.3 symmetric set" {
   let set = @jwk.Set::parse(secret_set[:])
   assert_eq(set.keys().length(), 2)
   match set.keys()[0].material() {
-    Oct(key~) => assert_eq(hex(key), "19ac2082e1721ab58a6afec05f854a52")
+    Oct(key~) =>
+      assert_eq(@base16.encode(key), "19ac2082e1721ab58a6afec05f854a52")
     _ => fail("the first key did not read as octets")
   }
   // The second is the key RFC 7515 §A.1 signs its example token with.
@@ -112,11 +108,11 @@ test "the RFC 8037 A.1 Ed25519 key" {
     Okp(curve~, x~, secret~) => {
       assert_eq(curve, "Ed25519")
       assert_eq(
-        hex(x),
+        @base16.encode(x),
         "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
       )
       assert_eq(
-        hex(secret.unwrap()),
+        @base16.encode(secret.unwrap()),
         "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
       )
     }
