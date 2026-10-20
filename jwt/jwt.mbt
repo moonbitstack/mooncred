@@ -199,15 +199,15 @@ pub let policy : Policy = {
 /// leaves all three unset, so there is nothing to clear. Starting from a base of
 /// one's own, `{ ..mine, issuer: None }` is how a check is dropped.
 pub fn Policy::new(
-  leeway? : Int64 = policy.leeway,
-  expiry? : Bool = policy.expiry,
-  not_before? : Bool = policy.not_before,
-  issued_at? : Bool = policy.issued_at,
+  leeway~ : Int64 = policy.leeway,
+  expiry~ : Bool = policy.expiry,
+  not_before~ : Bool = policy.not_before,
+  issued_at~ : Bool = policy.issued_at,
   issuer? : String,
-  audience? : Array[String] = policy.audience,
+  audience~ : Array[String] = policy.audience,
   subject? : String,
   typ? : String,
-  required? : Array[String] = policy.required,
+  required~ : Array[String] = policy.required,
 ) -> Policy {
   {
     leeway,
@@ -283,10 +283,10 @@ pub fn sign(
   claims : Map[String, Json],
   alg : Alg,
   key : &@spec.Signer,
-  typ? : String? = Some("JWT"),
-  extra? : Map[String, Json] = Map([]),
-  wins? : Wins = Base,
-  clash? : OnClash[Map[String, Json]] = Panic,
+  typ~ : String? = Some("JWT"),
+  extra~ : Map[String, Json] = Map([]),
+  wins~ : Wins = Base,
+  clash~ : OnClash[Map[String, Json]] = Panic,
 ) -> String {
   let head : Map[String, Json] = Map([])
   head["alg"] = Json::string(alg.name())
@@ -359,9 +359,9 @@ pub fn verify(
   alg : Alg,
   key : &@spec.Verifier,
   now~ : Clock,
-  policy? : Policy = policy,
-  wins? : Wins = Extra,
-  clash? : OnClash[Policy] = Ignore,
+  policy~ : Policy = policy,
+  wins~ : Wins = Extra,
+  clash~ : OnClash[Policy] = Ignore,
   leeway? : Int64,
   expiry? : Bool,
   issuer? : String,
@@ -579,7 +579,7 @@ pub impl @spec.Verifier for Keyed with fn verify(
 ///|
 /// Where the two dots are, which is all a caller needs to cut the three
 /// segments and the signing input out of one view.
-fn split(token : StringView) -> (Int, Int) raise Rejected {
+fn split(token : StringView) -> (Int32, Int32) raise Rejected {
   let mut first = -1
   let mut second = -1
   let mut count = 0

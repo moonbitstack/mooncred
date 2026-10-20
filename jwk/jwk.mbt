@@ -158,7 +158,7 @@ pub fn Jwk::is_private(self : Jwk) -> Bool {
 /// The private part is left out unless `secret` says otherwise, because the
 /// common reason to write a JWK is to publish it and the common accident is to
 /// publish the whole thing.
-pub fn Jwk::json(self : Jwk, secret? : Bool = false) -> Json {
+pub fn Jwk::json(self : Jwk, secret~ : Bool = false) -> Json {
   let out : Map[String, Json] = Map([])
   match self.material {
     Oct(key~) => {
@@ -231,7 +231,7 @@ struct Set {
 /// §5.1 says so, and a set that grows a post-quantum key must not stop every
 /// verifier that has not heard of it. `skip` turns that off for a caller who
 /// would rather hear about it.
-pub fn Set::read(value : Json, skip? : Bool = true) -> Set raise Bad {
+pub fn Set::read(value : Json, skip~ : Bool = true) -> Set raise Bad {
   let members = match value {
     Object(members) => members
     _ => raise Shape("a JWK set is a JSON object")
@@ -255,7 +255,7 @@ pub fn Set::read(value : Json, skip? : Bool = true) -> Set raise Bad {
 
 ///|
 /// Read a set from its JSON text.
-pub fn Set::parse(text : StringView, skip? : Bool = true) -> Set raise Bad {
+pub fn Set::parse(text : StringView, skip~ : Bool = true) -> Set raise Bad {
   Set::read(document(text), skip~)
 }
 
@@ -292,8 +292,8 @@ pub fn Set::pick(
   self : Set,
   alg~ : String,
   id? : String,
-  usage? : String? = Some("sig"),
-  first? : Bool = false,
+  usage~ : String? = Some("sig"),
+  first~ : Bool = false,
 ) -> Jwk? {
   match id {
     Some(name) =>

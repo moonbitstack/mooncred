@@ -276,7 +276,7 @@ test "x509: the generator's certificate parses back into the fields it was built
 fn with_exts(
   pub_key : @ecdsa.PublicKey,
   exts : Array[Bytes],
-  tag? : Int = 0xa3,
+  tag~ : Int32 = 0xa3,
 ) -> Bytes {
   let tbs = @asn1.sequence([
     @asn1.explicit(0, @asn1.integer(b"\x02")),

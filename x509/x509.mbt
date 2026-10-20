@@ -168,7 +168,7 @@ pub(all) enum GeneralName {
   Email(String)
   Uri(String)
   Ip(Bytes)
-  Named(Int, Bytes)
+  Named(Int32, Bytes)
 } derive(Eq, Debug)
 
 ///|
@@ -198,7 +198,7 @@ pub(all) struct Spki {
 pub(all) struct Exts {
   san : Array[GeneralName]
   ca : Bool
-  path_len : Int?
+  path_len : Int32?
   key_usage : @asn1.Bits?
   eku : Array[String]?
   unknown_critical : Array[String]
@@ -211,7 +211,7 @@ pub(all) struct Exts {
 pub(all) struct Cert {
   raw : BytesView
   tbs : BytesView
-  version : Int
+  version : Int32
   serial : BigInt
   alg : String
   issuer : Name
@@ -335,7 +335,7 @@ fn x509_san(v : BytesView) -> Array[GeneralName] raise @asn1.Refused {
 
 ///|
 /// A BasicConstraints (RFC 5280 §4.2.1.9) as `(cA, pathLenConstraint)`.
-fn x509_basic(v : BytesView) -> (Bool, Int?) raise @asn1.Refused {
+fn x509_basic(v : BytesView) -> (Bool, Int32?) raise @asn1.Refused {
   let seq = @asn1.only(v)
   if seq.tag != 0x30 {
     raise @asn1.Malformed("basicConstraints is not a SEQUENCE")
@@ -350,7 +350,7 @@ fn x509_basic(v : BytesView) -> (Bool, Int?) raise @asn1.Refused {
     }
     i = i + 1
   }
-  let mut path : Int? = None
+  let mut path : Int32? = None
   if i < items.length() && items[i].tag == 0x02 {
     if !ca {
       raise @asn1.Malformed("pathLenConstraint without cA")
@@ -402,7 +402,7 @@ fn x509_exts(t : @asn1.Tlv) -> Exts raise @asn1.Refused {
   let seen : Array[String] = []
   let mut san : Array[GeneralName] = []
   let mut ca = false
-  let mut path_len : Int? = None
+  let mut path_len : Int32? = None
   let mut key_usage : @asn1.Bits? = None
   let mut eku : Array[String]? = None
   let unknown_critical : Array[String] = []
@@ -712,8 +712,8 @@ pub extend Validity with Eq::{not_equal, equal}
 /// own — so a caller that only encrypts can leave them alone.
 pub fn Spki::rsa(
   self : Spki,
-  digest? : @rsa.Digest = Sha256,
-  scheme? : @rsa.Scheme = Pkcs1,
+  digest~ : @rsa.Digest = Sha256,
+  scheme~ : @rsa.Scheme = Pkcs1,
 ) -> @rsa.PublicKey raise @asn1.Refused {
   if self.alg != oid_rsa {
     raise @asn1.Unsupported("public key algorithm " + self.alg)

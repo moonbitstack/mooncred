@@ -7,7 +7,7 @@ fn raw(s : String) -> Bytes {
 }
 
 ///|
-fn sha(bits : Int) -> () -> &@spec.Hash {
+fn sha(bits : Int32) -> () -> &@spec.Hash {
   match bits {
     384 => fn() { @sha2.Hasher::new(kind=Sha384) }
     512 => fn() { @sha2.Hasher::new(kind=Sha512) }

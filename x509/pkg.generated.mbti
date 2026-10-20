@@ -50,7 +50,7 @@ pub fn Attr::to_repr(Self) -> @debug.Repr
 pub(all) struct Cert {
   raw : BytesView
   tbs : BytesView
-  version : Int
+  version : Int32
   serial : @bigint.BigInt
   alg : String
   issuer : Name
@@ -67,7 +67,7 @@ pub fn Cert::valid_at(Self, Int64) -> Bool
 pub(all) struct Exts {
   san : Array[GeneralName]
   ca : Bool
-  path_len : Int?
+  path_len : Int32?
   key_usage : @asn1.Bits?
   eku : Array[String]?
   unknown_critical : Array[String]
@@ -81,7 +81,7 @@ pub(all) enum GeneralName {
   Email(String)
   Uri(String)
   Ip(Bytes)
-  Named(Int, Bytes)
+  Named(Int32, Bytes)
 } derive(Eq, @debug.Debug)
 pub fn GeneralName::equal(Self, Self) -> Bool
 pub fn GeneralName::not_equal(Self, Self) -> Bool
