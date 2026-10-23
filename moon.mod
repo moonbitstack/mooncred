@@ -21,8 +21,6 @@ keywords = [
 
 description = "mooncred — credential formats for MoonBit: JSON Web Tokens, JWS, JWK and the JOSE algorithm set, built on mooncrypt's algorithms and moonbase's encodings."
 
-preferred_target = "wasm-gc"
-
 import {
   "moonbitstack/moonbase@0.4.0",
   "moonbitstack/mooncrypt@0.3.1",
