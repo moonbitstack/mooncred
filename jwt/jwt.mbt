@@ -51,7 +51,7 @@ pub fn Alg::name(self : Alg) -> String {
 
 ///|
 /// Read an algorithm by name.
-pub fn Alg::of(name : StringView) -> Alg raise Rejected {
+pub fn Alg::of(name : StringView) -> Alg raise Refused {
   match name {
     "HS256" => HS256
     "HS384" => HS384
@@ -228,7 +228,7 @@ pub fn Policy::new(
 /// Each reason is separate so a caller can map it to the right answer — an
 /// expired token deserves a different response from a forged one — and so a log
 /// says which check failed rather than that one did.
-pub(all) suberror Rejected {
+pub(all) suberror Refused {
   /// Not three segments, a segment that is not base64url, or a header or
   /// payload that is not a JSON object.
   Shape(String)
@@ -255,10 +255,10 @@ pub(all) suberror Rejected {
 } derive(Eq, Debug)
 
 ///|
-pub extend Rejected with Eq::{equal, not_equal}
+pub extend Refused with Eq::{equal, not_equal}
 
 ///|
-pub extend Rejected with Debug::{to_repr}
+pub extend Refused with Debug::{to_repr}
 
 ///|
 /// Sign a claims set as a compact JWT.
@@ -366,7 +366,7 @@ pub fn verify(
   expiry? : Bool,
   issuer? : String,
   audience? : Array[String],
-) -> Map[String, Json] raise Rejected {
+) -> Map[String, Json] raise Refused {
   let rules = settle(policy, wins, clash, leeway, expiry, issuer, audience)
   let (first, second) = split(token)
   let head = object(token[0:first], "header")
@@ -509,7 +509,7 @@ fn settle(
 ///
 /// This is for one thing: reading `kid` to choose which key to verify with.
 /// Nothing else in here has been checked by anybody.
-pub fn header(token : StringView) -> Map[String, Json] raise Rejected {
+pub fn header(token : StringView) -> Map[String, Json] raise Refused {
   object(token[0:split(token).0], "header")
 }
 
@@ -520,9 +520,7 @@ pub fn header(token : StringView) -> Map[String, Json] raise Rejected {
 /// returned is reading an attacker's input; it is here because a gateway
 /// sometimes must route on `iss` before it knows which key to fetch, and for no
 /// other reason.
-pub fn claims_unverified(
-  token : StringView,
-) -> Map[String, Json] raise Rejected {
+pub fn claims_unverified(token : StringView) -> Map[String, Json] raise Refused {
   let (first, second) = split(token)
   object(token[first + 1:second], "payload")
 }
@@ -579,7 +577,7 @@ pub impl @spec.Verifier for Keyed with fn verify(
 ///|
 /// Where the two dots are, which is all a caller needs to cut the three
 /// segments and the signing input out of one view.
-fn split(token : StringView) -> (Int32, Int32) raise Rejected {
+fn split(token : StringView) -> (Int32, Int32) raise Refused {
   let mut first = -1
   let mut second = -1
   let mut count = 0
@@ -613,14 +611,14 @@ fn wrap(raw : Bytes) -> String {
 }
 
 ///|
-fn unwrap(seg : StringView, what : String) -> Bytes raise Rejected {
+fn unwrap(seg : StringView, what : String) -> Bytes raise Refused {
   @base64.decode(seg, kind=Url) catch {
     _ => raise Shape("the \{what} is not base64url")
   }
 }
 
 ///|
-fn object(seg : StringView, what : String) -> Map[String, Json] raise Rejected {
+fn object(seg : StringView, what : String) -> Map[String, Json] raise Refused {
   let raw = unwrap(seg, what)
   let text = @utf8.decode(raw[:]) catch {
     _ => raise Shape("the \{what} is not UTF-8")

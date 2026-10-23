@@ -22,7 +22,8 @@ let got = @jwt.verify(token[:], HS256, key, now=now_seconds,
 |:--:|:--|:--|
 | `jwt` | JWS compact serialisation, all thirteen JOSE algorithms | RFC 7515, 7518, 7519, 8037 |
 | `jwk` | JSON Web Key and key sets: reading, writing, choosing | RFC 7517, RFC 7518 §6 |
-| `x509` | X.509 v3 certificates: build a self-signed one, read one down to its extensions, check its dates, its names and its signature | RFC 5280, RFC 6125 |
+| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA or Ed25519, match it against a host, validate a chain to a set of trust anchors; build a self-signed P-256 one | RFC 5280, RFC 6125, RFC 7468 |
+| `roots` | The Mozilla CA store as trust anchors, from curl's extract | — |
 
 ## The algorithm is not the token's to choose
 
@@ -132,36 +133,38 @@ the same way in every library here.
 ## Certificates
 
 ```moonbit
-// Build one a TLS server can present. Self-signed, P-256, ES256.
-let der = @x509.self_signed(key, serial, "example.test", "260101000000Z", "270101000000Z")
+// Validate what a server sent, against the Mozilla roots.
+let roots = @roots.mozilla()                     // build once, keep
+let path = @x509.verify(chain[:], roots, now~, host="example.com")
+// path: the leaf, the intermediates it runs through, the anchor
 
-// Read one a peer sent.
+// Or one certificate on its own.
 let cert = @x509.parse(der[:])
-cert.subject.cn()                 // Some("example.test")
-cert.valid_at(now)                // both ends inclusive, as RFC 5280 gives them
-cert.matches("a.example.test")    // RFC 6125 §6.4.3, wildcards included
-cert.signed_by(issuer_key)        // raises rather than answering false for an
-                                  // algorithm it did not check
+cert.matches("a.example.com")     // subjectAltName names and addresses
+cert.signed_by(issuer.spki)       // raises for an algorithm it does not check
 ```
 
-**What it covers.** The profile a TLS server needs: a P-256 key under
-`id-ecPublicKey` on `prime256v1`, an `ecdsa-with-SHA256` signature, a
-commonName, a subjectAltName, and the extension rules RFC 5280 §4.2 layers on
-top — an extension may not appear twice, a critical one may not be silently
-skipped. It reads certificates other tools wrote, including RSA ones, down to
-their extensions; it refuses to *verify* an algorithm it does not check rather
-than answering `false`, so a caller cannot read "not checked" as "checked and
-bad".
+`verify` takes the leaf and whatever intermediates the peer sent, in any order,
+and refuses with a reason and the position of the certificate it is about:
+`Expired(at=1)`, `Host("example.com")`, `Constraint(at=0, name=...)`. What it
+holds a chain to, and whose rule each is:
 
-**What it does not.** Chain building and a trust store. A single hop is checked
-against a key the caller supplies, which is what a self-signed server
-certificate and a pinned issuer need; validating a chain against a set of roots,
-with path length and name constraints, is not here. Nor is certificate
-generation for anything but a P-256 server.
+| Rule | From |
+|:--|:--|
+| Names come from subjectAltName only, never the commonName; an IP literal is held to the iPAddress entries | RFC 6125, Go, webpki |
+| Every issuer is a CA, has keyCertSign when it lists key usages, respects its pathLenConstraint; a CA is not a leaf | RFC 5280 §4.2.1.9, webpki |
+| Validity on every certificate but the anchor | RFC 5280 §6.1.3 |
+| The leaf allows the purpose asked for; an issuer that lists purposes allows it too | RFC 5280 §4.2.1.12, Go |
+| An unknown critical extension refuses the chain | RFC 5280 §4.2 |
+| Name constraints over dNSName, iPAddress, rfc822Name, directoryName and URI hosts | RFC 5280 §4.2.1.10 |
+| RSA PKCS#1 and PSS, ECDSA on four curves, Ed25519; no SHA-1 | webpki, Go |
+| At most six intermediates and a hundred signature checks | webpki |
 
-The DER underneath is `mooncrypt/asn1` and the curve arithmetic is
-`mooncrypt/sign/ecdsa`: a certificate is a credential, so its shape lives here,
-while the algorithms it names live there.
+The two limits and the purpose are a `Policy`, with `policy` as the preset.
+
+`roots` is its own package, so a program that brings its own anchors never
+links the bundle. The certificates are checked against the SHA-256 fingerprints
+curl lists beside them.
 
 ## What is checked
 
@@ -178,8 +181,8 @@ are not tokens — all refused, each with its own reason.
 
 ## What is not here yet
 
-X.509 certificates and path validation, certificate signing requests, PKCS#12,
-COSE and CWT, PASETO, and JWE. They are planned in that order; the tracking list
+Certificate signing requests, PKCS#12, CRL and OCSP responses, COSE and CWT,
+PASETO, and JWE. They are planned in that order; the tracking list
 lives with the project. Online revocation needs an HTTP client and belongs with
 the network, not here.
 

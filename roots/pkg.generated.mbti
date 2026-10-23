@@ -1,0 +1,21 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/roots"
+
+import {
+  "moonbitstack/mooncred/x509",
+}
+
+// Values
+pub let count : Int32
+
+pub fn mozilla() -> @x509.Roots
+
+pub let version : String
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

@@ -1,14 +1,19 @@
-// X.509 v3 certificates, RFC 5280: https://www.rfc-editor.org/rfc/rfc5280
+// X.509 v3 certificates and certification paths, RFC 5280: https://www.rfc-editor.org/rfc/rfc5280
+// Service identity, RFC 6125: https://www.rfc-editor.org/rfc/rfc6125
+// PEM, RFC 7468: https://www.rfc-editor.org/rfc/rfc7468
 //
-// Read and write the profile a TLS server needs: a P-256 key, an
-// ecdsa-with-SHA256 signature, a commonName and a subjectAltName. A
-// SubjectPublicKeyInfo also reads as an RSA key, and `pem` unwraps the envelope
-// those arrive in. Chain building and a trust store are not here; see the
-// README for what that means.
+// Read a certificate down to its extensions, check its signature under RSA, ECDSA or Ed25519,
+// match it against a host name or address, and validate a chain to a set of trust anchors.
+// Writes the self-signed P-256 certificate a TLS server needs.
 import {
   "moonbitstack/mooncrypt/asn1",
-  "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/curve",
+  "moonbitstack/mooncrypt/hash/sha2",
   "moonbitstack/mooncrypt/rsa",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/sign/ed25519",
+  "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonbase/base16",
   "moonbitstack/moonbase/base64",
 }
 

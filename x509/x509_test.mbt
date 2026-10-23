@@ -117,9 +117,7 @@ test "x509: a real RSA certificate, read down to its extensions" {
     BigInt::from_string("68f30bd1cd805d4eb7122146ff43c610718471a3", radix=16),
   )
   assert_eq(cert.alg, "1.2.840.113549.1.1.11") // sha256WithRSAEncryption
-  assert_eq(cert.subject, @x509.Name::{
-    rdns: [[{ oid: "2.5.4.3", value: "localhost", }]],
-  })
+  assert_eq(cert.subject.rdns, [[{ oid: "2.5.4.3", value: "localhost", }]])
   assert_eq(cert.subject.cn(), Some("localhost"))
   assert_eq(cert.issuer, cert.subject) // self-signed
   assert_eq(cert.validity, { not_before: 1785236091L, not_after: 2100596091L, })
@@ -143,7 +141,8 @@ test "x509: a real RSA certificate, read down to its extensions" {
   assert_eq(cert.matches("localhost"), true)
   assert_eq(cert.matches("LocalHost"), true)
   assert_eq(cert.matches("localhost.example"), false)
-  assert_eq(cert.matches("127.0.0.1"), false) // the iPAddress entry is not a hostname
+  assert_eq(cert.matches("127.0.0.1"), true) // an address literal is held to the iPAddress entries
+  assert_eq(cert.matches("127.0.0.2"), false)
   assert_eq(cert.valid_at(1785236091L), true)
   assert_eq(cert.valid_at(1785236090L), false)
   assert_eq(cert.valid_at(2100596091L), true)
@@ -153,13 +152,14 @@ test "x509: a real RSA certificate, read down to its extensions" {
     refusal(() => cert.spki.p256() |> ignore),
     "Unsupported: public key algorithm 1.2.840.113549.1.1.1",
   )
-  let some_key = key_of(
-    "0000000000000000000000000000000000000000000000000000000000233333",
-  ).public()
-  assert_eq(
-    refusal(() => cert.signed_by(some_key) |> ignore),
-    "Unsupported: signature algorithm 1.2.840.113549.1.1.11",
+  // Self-signed with sha256WithRSAEncryption: its own key checks it, a P-256 key cannot.
+  assert_eq(cert.signed_by(cert.spki), true)
+  let p256 = @x509.Spki::read(
+    @x509.spki_of(
+      key_of("0000000000000000000000000000000000000000000000000000000000233333").public(),
+    )[:],
   )
+  assert_eq(cert.signed_by(p256), false)
 }
 
 ///|
@@ -168,12 +168,10 @@ test "x509: a real P-256 certificate — its key, its extensions, and its own si
   let cert = @x509.parse(der[:])
   assert_eq(cert.version, 3)
   assert_eq(cert.alg, "1.2.840.10045.4.3.2") // ecdsa-with-SHA256
-  assert_eq(cert.subject, @x509.Name::{
-    rdns: [
-      [{ oid: "2.5.4.3", value: "lfanke.example", }],
-      [{ oid: "2.5.4.10", value: "heke1228", }],
-    ],
-  })
+  assert_eq(cert.subject.rdns, [
+    [{ oid: "2.5.4.3", value: "lfanke.example", }],
+    [{ oid: "2.5.4.10", value: "heke1228", }],
+  ])
   assert_eq(cert.subject.cn(), Some("lfanke.example"))
   assert_eq(cert.subject.get("2.5.4.10"), Some("heke1228"))
   assert_eq(cert.subject.get("2.5.4.6"), None)
@@ -206,13 +204,13 @@ test "x509: a real P-256 certificate — its key, its extensions, and its own si
     "bd638f8acab9d3c241bf7d14bdc570bda8e36f4b1520884455178cc6c7a61ee9",
   )
   // Self-signed: the certificate's own key checks the ECDSA signature openssl put on it.
-  assert_eq(cert.signed_by(key), true)
+  assert_eq(cert.signed_by(cert.spki), true)
   // The same key against a certificate whose TBS is one byte different is not a signature.
   let tampered = Buffer()
   tampered.write_bytes(der[0:20])
   tampered.write_byte((der[20].to_int() ^ 1).to_byte())
   tampered.write_bytes(der[21:])
-  assert_eq(@x509.parse(tampered.to_bytes()[:]).signed_by(key), false)
+  assert_eq(@x509.parse(tampered.to_bytes()[:]).signed_by(cert.spki), false)
   assert_eq(cert.matches("a.lfanke.example"), true)
   assert_eq(cert.matches("A.LFANKE.Example"), true)
   assert_eq(cert.matches("lfanke.example"), false) // the wildcard is a label, not nothing
@@ -263,7 +261,7 @@ test "x509: the generator's certificate parses back into the fields it was built
       key.public(),
     ),
   )
-  assert_eq(cert.signed_by(cert.spki.p256()), true)
+  assert_eq(cert.signed_by(cert.spki), true)
   // It carries no subjectAltName, so it is an identity for no host at all.
   assert_eq(cert.exts.san, [])
   assert_eq(cert.matches("lfanke.example"), false)
@@ -335,7 +333,7 @@ test "x509: the DER rules RFC 5280 §4.2 layers on the extensions are enforced" 
       ])
       @x509.parse(with_exts(pub_key, [short_ip])[:]) |> ignore
     }),
-    "Malformed: iPAddress is neither four nor sixteen octets",
+    "Malformed: iPAddress has the wrong length",
   )
   assert_eq(
     refusal(() => {
@@ -437,7 +435,7 @@ test "x509: a public key is refused unless it is an uncompressed point on P-256"
       }
       spki.p256() |> ignore
     }),
-    "Malformed: public key is not a point on P-256",
+    "Malformed: public key is not a point on its curve",
   )
   assert_eq(
     refusal(() => {
@@ -448,7 +446,7 @@ test "x509: a public key is refused unless it is an uncompressed point on P-256"
       }
       spki.p256() |> ignore
     }),
-    "Malformed: public key is not an uncompressed P-256 point",
+    "Malformed: public key is not an uncompressed point",
   )
   assert_eq(
     refusal(() => {

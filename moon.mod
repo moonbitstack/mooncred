@@ -1,6 +1,6 @@
 name = "moonbitstack/mooncred"
 
-version = "0.6.1"
+version = "0.6.2"
 
 readme = "README.md"
 
@@ -15,14 +15,16 @@ keywords = [
   "jose",
   "token",
   "credential",
+  "x509",
+  "certificate",
   "oauth2",
   "moonbit",
 ]
 
-description = "mooncred — credential formats for MoonBit: JSON Web Tokens, JWS, JWK and the JOSE algorithm set, built on mooncrypt's algorithms and moonbase's encodings."
+description = "mooncred — credential formats for MoonBit: JSON Web Tokens, JWS and JWK with the JOSE algorithm set, and X.509 certificates with chain validation to the Mozilla roots, built on mooncrypt's algorithms."
 
 import {
   "moonbitstack/moonbase@0.4.0",
-  "moonbitstack/mooncrypt@0.3.1",
+  "moonbitstack/mooncrypt@0.4.1",
   "moonbitstack/moonjson@0.4.0",
 }

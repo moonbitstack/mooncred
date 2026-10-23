@@ -1,0 +1,12 @@
+// The Mozilla CA certificate store, from curl's extract: https://curl.se/docs/caextract.html
+//
+// Its own package so a program that brings its own anchors never links the two hundred
+// kilobytes of the bundle.
+import {
+  "moonbitstack/mooncred/x509",
+}
+
+import {
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/moonbase/base16",
+} for "wbtest"

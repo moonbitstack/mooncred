@@ -27,7 +27,7 @@ pub extend Material with Debug::{to_repr}
 
 ///|
 /// Why a JWK could not be read.
-pub(all) suberror Bad {
+pub(all) suberror Refused {
   /// The document is not a JSON object, or a set has no `keys` array.
   Shape(String)
   /// A field the key type requires is absent or not a string.
@@ -39,10 +39,10 @@ pub(all) suberror Bad {
 } derive(Eq, Debug)
 
 ///|
-pub extend Bad with Eq::{equal, not_equal}
+pub extend Refused with Eq::{equal, not_equal}
 
 ///|
-pub extend Bad with Debug::{to_repr}
+pub extend Refused with Debug::{to_repr}
 
 ///|
 /// One key, with the metadata a chooser needs.
@@ -56,7 +56,7 @@ struct Jwk {
 
 ///|
 /// Read one key from a parsed document.
-pub fn Jwk::read(value : Json) -> Jwk raise Bad {
+pub fn Jwk::read(value : Json) -> Jwk raise Refused {
   let members = match value {
     Object(members) => members
     _ => raise Shape("a JWK is a JSON object")
@@ -104,7 +104,7 @@ pub fn Jwk::read(value : Json) -> Jwk raise Bad {
 
 ///|
 /// Read one key from its JSON text.
-pub fn Jwk::parse(text : StringView) -> Jwk raise Bad {
+pub fn Jwk::parse(text : StringView) -> Jwk raise Refused {
   Jwk::read(document(text))
 }
 
@@ -231,7 +231,7 @@ struct Set {
 /// §5.1 says so, and a set that grows a post-quantum key must not stop every
 /// verifier that has not heard of it. `skip` turns that off for a caller who
 /// would rather hear about it.
-pub fn Set::read(value : Json, skip~ : Bool = true) -> Set raise Bad {
+pub fn Set::read(value : Json, skip~ : Bool = true) -> Set raise Refused {
   let members = match value {
     Object(members) => members
     _ => raise Shape("a JWK set is a JSON object")
@@ -255,7 +255,7 @@ pub fn Set::read(value : Json, skip~ : Bool = true) -> Set raise Bad {
 
 ///|
 /// Read a set from its JSON text.
-pub fn Set::parse(text : StringView, skip~ : Bool = true) -> Set raise Bad {
+pub fn Set::parse(text : StringView, skip~ : Bool = true) -> Set raise Refused {
   Set::read(document(text), skip~)
 }
 
@@ -337,14 +337,14 @@ fn suits(key : Jwk, alg : String, want : String?) -> Bool {
 // ----------------------------------------------------------------- the pieces
 
 ///|
-fn document(text : StringView) -> Json raise Bad {
+fn document(text : StringView) -> Json raise Refused {
   @json.loads(text) catch {
     _ => raise Shape("not valid JSON")
   }
 }
 
 ///|
-fn text(members : Map[String, Json], field : String) -> String raise Bad {
+fn text(members : Map[String, Json], field : String) -> String raise Refused {
   match members.get(field) {
     Some(String(value)) => value
     _ => raise Missing(field~)
@@ -352,7 +352,7 @@ fn text(members : Map[String, Json], field : String) -> String raise Bad {
 }
 
 ///|
-fn raw(members : Map[String, Json], field : String) -> Bytes raise Bad {
+fn raw(members : Map[String, Json], field : String) -> Bytes raise Refused {
   let encoded = text(members, field)
   @base64.decode(encoded[:], kind=Url) catch {
     _ => raise NotBase64(field~)
@@ -360,7 +360,10 @@ fn raw(members : Map[String, Json], field : String) -> Bytes raise Bad {
 }
 
 ///|
-fn optional(members : Map[String, Json], field : String) -> Bytes? raise Bad {
+fn optional(
+  members : Map[String, Json],
+  field : String,
+) -> Bytes? raise Refused {
   if members.get(field) is Some(String(_)) {
     Some(raw(members, field))
   } else {

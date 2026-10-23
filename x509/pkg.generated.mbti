@@ -7,6 +7,7 @@ import {
   "moonbitstack/mooncrypt/asn1",
   "moonbitstack/mooncrypt/rsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/sign/ed25519",
 }
 
 // Values
@@ -18,6 +19,8 @@ pub fn common_name(String) -> Bytes
 
 pub fn dns_match(String, String) -> Bool
 
+pub let eku_any : String
+
 pub let eku_client_auth : String
 
 pub let eku_server_auth : String
@@ -28,6 +31,10 @@ pub fn parse(BytesView) -> Cert raise @asn1.Refused
 
 pub fn pem(String) -> Bytes raise @asn1.Refused
 
+pub fn pems(String, label? : String) -> Array[Bytes] raise @asn1.Refused
+
+pub let policy : Policy
+
 pub fn self_signed(@ecdsa.PrivateKey, Bytes, String, String, String) -> Bytes
 
 pub fn spki_of(@ecdsa.PublicKey) -> Bytes
@@ -36,7 +43,27 @@ pub fn tbs_of(Bytes, String, String, String, @ecdsa.PublicKey) -> Bytes
 
 pub fn validity_of(String, String) -> Bytes
 
+pub fn verify(ArrayView[Bytes], Roots, now~ : Int64, host? : String, policy? : Policy) -> Array[Cert] raise Refused
+
 // Errors
+pub(all) suberror Refused {
+  Malformed(at~ : Int32, String)
+  Expired(at~ : Int32)
+  Premature(at~ : Int32)
+  Issuer
+  Authority(at~ : Int32)
+  Signature(at~ : Int32)
+  Depth(limit~ : Int32)
+  Budget(limit~ : Int32)
+  Host(String)
+  Purpose(at~ : Int32)
+  Critical(at~ : Int32, oid~ : String)
+  Constraint(at~ : Int32, name~ : String)
+  Algorithm(at~ : Int32, oid~ : String)
+} derive(Eq, @debug.Debug)
+pub fn Refused::equal(Self, Self) -> Bool
+pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct Attr {
@@ -53,6 +80,7 @@ pub(all) struct Cert {
   version : Int32
   serial : @bigint.BigInt
   alg : String
+  params : Bytes?
   issuer : Name
   validity : Validity
   subject : Name
@@ -61,8 +89,16 @@ pub(all) struct Cert {
   sig : @asn1.Bits
 }
 pub fn Cert::matches(Self, String) -> Bool
-pub fn Cert::signed_by(Self, @ecdsa.PublicKey) -> Bool raise @asn1.Refused
+pub fn Cert::signed_by(Self, Spki) -> Bool raise @asn1.Refused
 pub fn Cert::valid_at(Self, Int64) -> Bool
+
+pub(all) struct Constraints {
+  permitted : Array[GeneralName]
+  excluded : Array[GeneralName]
+} derive(Eq, @debug.Debug)
+pub fn Constraints::equal(Self, Self) -> Bool
+pub fn Constraints::not_equal(Self, Self) -> Bool
+pub fn Constraints::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Exts {
   san : Array[GeneralName]
@@ -70,6 +106,9 @@ pub(all) struct Exts {
   path_len : Int32?
   key_usage : @asn1.Bits?
   eku : Array[String]?
+  ski : Bytes?
+  aki : Bytes?
+  constraints : Constraints?
   unknown_critical : Array[String]
 } derive(Eq, @debug.Debug)
 pub fn Exts::equal(Self, Self) -> Bool
@@ -81,14 +120,22 @@ pub(all) enum GeneralName {
   Email(String)
   Uri(String)
   Ip(Bytes)
+  Dir(Name)
   Named(Int32, Bytes)
 } derive(Eq, @debug.Debug)
 pub fn GeneralName::equal(Self, Self) -> Bool
 pub fn GeneralName::not_equal(Self, Self) -> Bool
 pub fn GeneralName::to_repr(Self) -> @debug.Repr
 
+pub(all) enum Key {
+  Rsa(@rsa.PublicKey)
+  Ec(@ecdsa.PublicKey)
+  Ed25519(@ed25519.PublicKey)
+}
+
 pub(all) struct Name {
   rdns : Array[Array[Attr]]
+  raw : Bytes
 } derive(Eq, @debug.Debug)
 pub fn Name::cn(Self) -> String?
 pub fn Name::equal(Self, Self) -> Bool
@@ -96,17 +143,47 @@ pub fn Name::get(Self, String) -> String?
 pub fn Name::not_equal(Self, Self) -> Bool
 pub fn Name::to_repr(Self) -> @debug.Repr
 
+pub(all) struct Policy {
+  usage : Usage
+  depth : Int32
+  budget : Int32
+} derive(Eq, @debug.Debug)
+pub fn Policy::equal(Self, Self) -> Bool
+pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32) -> Self
+pub fn Policy::not_equal(Self, Self) -> Bool
+pub fn Policy::to_repr(Self) -> @debug.Repr
+
+pub struct Roots {
+  // private fields
+}
+pub fn Roots::add(Self, BytesView) -> Unit raise @asn1.Refused
+pub fn Roots::iter(Self) -> Iter[Cert]
+pub fn Roots::length(Self) -> Int32
+pub fn Roots::new(certs? : ArrayView[Bytes]) -> Self raise @asn1.Refused
+pub fn Roots::pem(String) -> Self raise @asn1.Refused
+
 pub(all) struct Spki {
   alg : String
   params : String?
   key : @asn1.Bits
 } derive(Eq, @debug.Debug)
 pub fn Spki::equal(Self, Self) -> Bool
+pub fn Spki::key(Self) -> Key raise @asn1.Refused
 pub fn Spki::not_equal(Self, Self) -> Bool
 pub fn Spki::p256(Self) -> @ecdsa.PublicKey raise @asn1.Refused
 pub fn Spki::read(BytesView) -> Self raise @asn1.Refused
 pub fn Spki::rsa(Self, digest? : @rsa.Digest, scheme? : @rsa.Scheme) -> @rsa.PublicKey raise @asn1.Refused
 pub fn Spki::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Usage {
+  Server
+  Client
+  Any
+  Other(String)
+} derive(Eq, @debug.Debug)
+pub fn Usage::equal(Self, Self) -> Bool
+pub fn Usage::not_equal(Self, Self) -> Bool
+pub fn Usage::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Validity {
   not_before : Int64

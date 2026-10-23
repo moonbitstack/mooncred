@@ -7,9 +7,9 @@ import {
 }
 
 // Values
-pub fn claims_unverified(StringView) -> Map[String, Json] raise Rejected
+pub fn claims_unverified(StringView) -> Map[String, Json] raise Refused
 
-pub fn header(StringView) -> Map[String, Json] raise Rejected
+pub fn header(StringView) -> Map[String, Json] raise Refused
 
 pub fn mac(() -> &@spec.Mac) -> Keyed
 
@@ -17,10 +17,10 @@ pub let policy : Policy
 
 pub fn sign(Map[String, Json], Alg, &@spec.Signer, typ? : String?, extra? : Map[String, Json], wins? : Wins, clash? : OnClash[Map[String, Json]]) -> String
 
-pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, Json] raise Rejected
+pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, Json] raise Refused
 
 // Errors
-pub(all) suberror Rejected {
+pub(all) suberror Refused {
   Shape(String)
   Algorithm(want~ : String, got~ : String)
   Signature
@@ -33,9 +33,9 @@ pub(all) suberror Rejected {
   Type(want~ : String, got~ : String)
   Missing(claim~ : String)
 } derive(Eq, @debug.Debug)
-pub fn Rejected::equal(Self, Self) -> Bool
-pub fn Rejected::not_equal(Self, Self) -> Bool
-pub fn Rejected::to_repr(Self) -> @debug.Repr
+pub fn Refused::equal(Self, Self) -> Bool
+pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) enum Alg {
@@ -56,7 +56,7 @@ pub(all) enum Alg {
 pub fn Alg::equal(Self, Self) -> Bool
 pub fn Alg::name(Self) -> String
 pub fn Alg::not_equal(Self, Self) -> Bool
-pub fn Alg::of(StringView) -> Self raise Rejected
+pub fn Alg::of(StringView) -> Self raise Refused
 pub fn Alg::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Clock {
