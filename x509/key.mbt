@@ -5,11 +5,9 @@
 let oid_ec_key : String = "1.2.840.10045.2.1"
 
 ///|
-/// rsaEncryption (RFC 8017 §A.1), the algorithm a SubjectPublicKeyInfo names when the key is RSA.
 let oid_rsa : String = "1.2.840.113549.1.1.1"
 
 ///|
-/// id-Ed25519 (RFC 8410 §3): the key algorithm and the signature algorithm are one OID.
 let oid_ed25519 : String = "1.3.101.112"
 
 ///|
@@ -45,8 +43,6 @@ pub(all) enum Key {
 }
 
 ///|
-/// An AlgorithmIdentifier (RFC 5280 §4.1.1.2) as its OID and the encoding of its parameters,
-/// `None` when they are absent.
 fn read_alg(tlv : @asn1.Tlv) -> (String, BytesView?) raise @asn1.Refused {
   if tlv.tag != 0x30 {
     raise @asn1.Malformed("AlgorithmIdentifier is not a SEQUENCE")
@@ -62,7 +58,6 @@ fn read_alg(tlv : @asn1.Tlv) -> (String, BytesView?) raise @asn1.Refused {
 }
 
 ///|
-/// A SubjectPublicKeyInfo (RFC 5280 §4.1.2.7).
 fn read_spki(tlv : @asn1.Tlv) -> Spki raise @asn1.Refused {
   if tlv.tag != 0x30 {
     raise @asn1.Malformed("SubjectPublicKeyInfo is not a SEQUENCE")
@@ -96,7 +91,6 @@ pub fn Spki::read(der : BytesView) -> Spki raise @asn1.Refused {
 }
 
 ///|
-/// The curve a named-curve OID stands for.
 fn curve_of(oid : String?) -> @curve.Curve raise @asn1.Refused {
   match oid {
     Some(o) if o == oid_p256 => P256
@@ -109,7 +103,6 @@ fn curve_of(oid : String?) -> @curve.Curve raise @asn1.Refused {
 }
 
 ///|
-/// The key bits as octets, refusing a BIT STRING with a partial last octet.
 fn key_octets(spki : Spki) -> Bytes raise @asn1.Refused {
   if spki.key.unused != 0 {
     raise @asn1.Malformed("public key BIT STRING has unused bits")

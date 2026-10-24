@@ -229,7 +229,10 @@ test "x509: the wildcard covers one whole label and nothing else (RFC 6125 §6.4
   assert_eq(@x509.dns_match("*b.a.example", "cb.a.example"), false)
   assert_eq(@x509.dns_match("a.*.example", "a.b.example"), false)
   assert_eq(@x509.dns_match("*", "example"), false)
-  assert_eq(@x509.dns_match("*.example", "a.example"), true)
+  assert_eq(@x509.dns_match("*.example", "a.example"), false) // two labels after the wildcard, as NSS and webpki ask
+  assert_eq(@x509.dns_match("*.com", "a.com"), false)
+  assert_eq(@x509.dns_match("a.example", "-a.example"), false)
+  assert_eq(@x509.dns_match("1.2.3.4", "1.2.3.4"), false)
   assert_eq(@x509.dns_match("a.example", "a.example."), false) // the empty label is not a label
   assert_eq(@x509.dns_match("a..example", "a..example"), false)
 }

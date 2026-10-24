@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 ///|
-/// The address an IPv4 dotted-quad or IPv6 literal (RFC 4291 §2.2, brackets allowed) spells, as
-/// the four or sixteen octets a subjectAltName iPAddress holds; `None` when `s` is not one, which
-/// makes it a DNS name.
 fn ip_literal(s : String) -> Bytes? {
   let t = match s.strip_prefix("[") {
     Some(rest) =>
@@ -52,7 +49,6 @@ fn ipv4(s : String) -> Bytes? {
 }
 
 ///|
-/// One hexadecimal group of an IPv6 address.
 fn hex_group(g : StringView) -> Int32? {
   if g.length() == 0 || g.length() > 4 {
     return None

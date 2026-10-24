@@ -36,7 +36,6 @@ pub(all) struct Cert {
 }
 
 ///|
-/// A Validity (RFC 5280 §4.1.2.5).
 fn read_window(tlv : @asn1.Tlv) -> Validity raise @asn1.Refused {
   if tlv.tag != 0x30 {
     raise @asn1.Malformed("Validity is not a SEQUENCE")
@@ -145,34 +144,72 @@ pub fn Cert::valid_at(self : Cert, now : Int64) -> Bool {
 }
 
 ///|
-/// Whether the dNSName `pattern` names `host` (RFC 6125 §6.4.3): label by label, ASCII case
-/// insensitive. A first label of exactly `*` stands for one whole label, so `*.a.example` covers
-/// `b.a.example` and neither `a.example` nor `c.b.a.example`. A `*` anywhere else, or fused to
-/// the rest of its label as in `b*.a.example`, matches nothing — a partial wildcard is a claim on
-/// a name the issuer never checked.
-pub fn dns_match(pattern : String, host : String) -> Bool {
-  let p = pattern.split(".").to_array()
-  let h = host.split(".").to_array()
-  if p.length() != h.length() || p.length() == 0 {
+/// Whether `s` is a well-formed DNS identifier (RFC 1034 §3.5, RFC 5280 §4.2.1.6): at most 253
+/// octets, labels of letters, digits, hyphens and underscores, none empty, none longer than 63,
+/// none starting or ending with a hyphen, the last not all digits. `wildcard` admits a first
+/// label of exactly `*`, followed by at least two more labels, as NSS and webpki require;
+/// `constraint` admits a leading dot and the empty string. The rules are webpki's.
+fn dns_id(s : String, wildcard~ : Bool, constraint~ : Bool) -> Bool {
+  if s.length() > 253 {
     return false
   }
-  // A lone `*` would otherwise name every single-label host. How much of the tail a wildcard may
-  // cover past that is a question about public suffixes, which needs a list this package has no
-  // business carrying; that rule belongs to the caller.
-  if p[0] == "*" && p.length() < 2 {
+  if constraint && s.length() == 0 {
+    return true
+  }
+  let body = match s.strip_prefix("*.") {
+    Some(rest) if wildcard => rest.to_owned()
+    _ =>
+      match s.strip_prefix(".") {
+        Some(rest) if constraint => rest.to_owned()
+        _ => s
+      }
+  }
+  let labels = body.split(".").to_array()
+  if wildcard && s.has_prefix("*.") && labels.length() < 2 {
+    return false
+  }
+  for i, label in labels {
+    if label.length() == 0 || label.length() > 63 {
+      return false
+    }
+    if label.has_prefix("-") || label.has_suffix("-") {
+      return false
+    }
+    let mut digits = true
+    for c in label {
+      match c {
+        '0'..<='9' => ()
+        'a'..<='z' | 'A'..<='Z' | '_' | '-' => digits = false
+        _ => return false
+      }
+    }
+    if digits && i == labels.length() - 1 {
+      return false
+    }
+  }
+  true
+}
+
+///|
+/// Whether the dNSName `pattern` names `host` (RFC 6125 §6.4.3): label by label, ASCII case
+/// insensitive. A first label of exactly `*` stands for one whole label and needs two more after
+/// it, so `*.a.example` covers `b.a.example` and neither `a.example` nor `c.b.a.example`, and
+/// `*.com` covers nothing. A `*` anywhere else, or fused to the rest of its label as in
+/// `b*.a.example`, matches nothing — a partial wildcard is a claim on a name the issuer never
+/// checked. A pattern or host that is not a well-formed DNS name matches nothing.
+pub fn dns_match(pattern : String, host : String) -> Bool {
+  if !dns_id(pattern, wildcard=true, constraint=false) ||
+    !dns_id(host, wildcard=false, constraint=false) {
+    return false
+  }
+  let p = pattern.split(".").to_array()
+  let h = host.split(".").to_array()
+  if p.length() != h.length() {
     return false
   }
   for i in 0..<p.length() {
-    if p[i].length() == 0 || h[i].length() == 0 {
-      return false
-    }
     if i == 0 && p[0] == "*" {
       continue
-    }
-    for c in p[i] {
-      if c == '*' {
-        return false
-      }
     }
     if !p[i].equal_ignore_ascii_case(h[i]) {
       return false

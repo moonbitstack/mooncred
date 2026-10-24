@@ -42,7 +42,6 @@ pub fn Name::cn(self : Name) -> String? {
 }
 
 ///|
-/// An RDNSequence (RFC 5280 §4.1.2.4).
 fn read_name(tlv : @asn1.Tlv) -> Name raise @asn1.Refused {
   if tlv.tag != 0x30 {
     raise @asn1.Malformed("Name is not a SEQUENCE")
@@ -83,7 +82,6 @@ fn attr_text(t : @asn1.Tlv) -> String raise @asn1.Refused {
 }
 
 ///|
-/// The RDNs of `name` as their encodings, for the prefix test a directoryName constraint is.
 fn rdn_raws(name : Name) -> Array[Bytes] raise @asn1.Refused {
   @asn1.only(name.raw[:]).items().map(r => r.raw.to_owned())
 }

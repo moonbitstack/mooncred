@@ -243,5 +243,56 @@ test "roots: from a PEM bundle, duplicates kept once" {
 test "policy: the three ways of writing one agree" {
   assert_eq(@x509.Policy::new(), @x509.policy)
   assert_eq(@x509.Policy::new(depth=3), { ..@x509.policy, depth: 3, })
-  assert_eq(@x509.policy, { usage: Server, depth: 6, budget: 100, })
+  assert_eq(@x509.policy, {
+    usage: Server,
+    depth: 6,
+    budget: 100,
+    comparisons: 250_000,
+    bits: 2048,
+  })
+}
+
+///|
+test "verify: a wildcard falls under an exclusion it could expand into (CVE-2025-61727)" {
+  assert_eq(
+    refused(ders([wild_leaf, wild_inter]), roots([rsa_root])),
+    Constraint(at=0, name="*.example.com"),
+  )
+}
+
+///|
+test "verify: a URI constraint without a dot names one host" {
+  let r = roots([rsa_root])
+  @x509.verify(ders([uri_ok, uri_inter])[:], r, now~) |> ignore
+  assert_eq(
+    refused(ders([uri_sub, uri_inter]), r),
+    Constraint(at=0, name="https://sub.example.com/x"),
+  )
+}
+
+///|
+test "verify: an RSA key below the policy's bits signs nothing" {
+  let chain = ders([weak_leaf])
+  let r = roots([weak_root])
+  assert_eq(refused(chain, r), Weak(at=0))
+  @x509.verify(chain[:], r, now~, policy=@x509.Policy::new(bits=1024)) |> ignore
+}
+
+///|
+test "verify: name-constraint comparisons are bounded" {
+  let chain = ders([nc_ok, nc_inter])
+  let r = roots([rsa_root])
+  assert_eq(
+    refused(chain, r, policy=@x509.Policy::new(comparisons=0)),
+    Comparisons(limit=0),
+  )
+}
+
+///|
+test "refused: reads as a sentence" {
+  assert_eq(@x509.Expired(at=1).to_string(), "certificate 1 has expired")
+  assert_eq(
+    @x509.Host("a.example").to_string(),
+    "the certificate does not name a.example",
+  )
 }

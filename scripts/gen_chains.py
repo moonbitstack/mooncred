@@ -51,6 +51,9 @@ def build(cn, key, issuer=None, *, ca=False, path_len=None, ku=None, eku=None, s
     if san:
         names = []
         for s in san:
+            if "://" in s:
+                names.append(x509.UniformResourceIdentifier(s))
+                continue
             try:
                 names.append(x509.IPAddress(ipaddress.ip_address(s)))
             except ValueError:
@@ -134,6 +137,19 @@ def main():
     ncr = build("nc root", rsa_key(), ca=True, ku="ca", nc=nc)
     certs["nc_root"] = ncr[0]
     certs["nc_root_leaf"] = build("nc root leaf", leaf_key, ncr, san=["x.other.example"])[0]
+
+    wild = build("wild inter", rsa_key(), root, ca=True, ku="ca",
+                 nc=([], [x509.DNSName("bar.example.com")]))
+    certs["wild_inter"] = wild[0]
+    certs["wild_leaf"] = build("wild leaf", leaf_key, wild, san=["*.example.com"])[0]
+    uri = build("uri inter", rsa_key(), root, ca=True, ku="ca",
+                nc=([x509.UniformResourceIdentifier("example.com"), x509.DNSName("example.com")], []))
+    certs["uri_inter"] = uri[0]
+    certs["uri_ok"] = build("uri ok", leaf_key, uri, san=["a.example.com", "https://example.com/x"])[0]
+    certs["uri_sub"] = build("uri sub", leaf_key, uri, san=["a.example.com", "https://sub.example.com/x"])[0]
+    weak = build("weak root", rsa.generate_private_key(public_exponent=65537, key_size=1024), ca=True, ku="ca")
+    certs["weak_root"] = weak[0]
+    certs["weak_leaf"] = build("weak leaf", leaf_key, weak, san=["a.example"])[0]
 
     real = build("decoyed", rsa_key(), root, ca=True, ku="ca", ski=False)
     certs["decoyed_inter"] = real[0]

@@ -56,7 +56,6 @@ pub(all) struct Exts {
 } derive(Eq, Debug)
 
 ///|
-/// The extensions of a certificate that has none.
 let no_exts : Exts = {
   san: [],
   ca: false,
@@ -70,7 +69,6 @@ let no_exts : Exts = {
 }
 
 ///|
-/// One GeneralName. `constraint` reads an iPAddress as address and mask.
 fn read_general(
   g : @asn1.Tlv,
   constraint~ : Bool,
@@ -119,7 +117,6 @@ fn read_san(v : BytesView) -> Array[GeneralName] raise @asn1.Refused {
 }
 
 ///|
-/// A BasicConstraints (RFC 5280 §4.2.1.9) as `(cA, pathLenConstraint)`.
 fn read_basic(v : BytesView) -> (Bool, Int32?) raise @asn1.Refused {
   let seq = @asn1.only(v)
   if seq.tag != 0x30 {
@@ -157,7 +154,6 @@ fn read_basic(v : BytesView) -> (Bool, Int32?) raise @asn1.Refused {
 }
 
 ///|
-/// An ExtKeyUsageSyntax (RFC 5280 §4.2.1.12): the key purposes, of which there is at least one.
 fn read_eku(v : BytesView) -> Array[String] raise @asn1.Refused {
   let seq = @asn1.only(v)
   if seq.tag != 0x30 {
@@ -209,7 +205,6 @@ fn read_subtrees(t : @asn1.Tlv) -> Array[GeneralName] raise @asn1.Refused {
 }
 
 ///|
-/// A NameConstraints (RFC 5280 §4.2.1.10).
 fn read_constraints(v : BytesView) -> Constraints raise @asn1.Refused {
   let seq = @asn1.only(v)
   if seq.tag != 0x30 {
@@ -238,7 +233,6 @@ fn read_constraints(v : BytesView) -> Constraints raise @asn1.Refused {
 }
 
 ///|
-/// The `[3] EXPLICIT Extensions` of a v3 certificate (RFC 5280 §4.1.2.9).
 fn read_exts(t : @asn1.Tlv) -> Exts raise @asn1.Refused {
   let seq = @asn1.only(t.value)
   if seq.tag != 0x30 {

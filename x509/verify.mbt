@@ -38,6 +38,11 @@ pub(all) suberror Refused {
   Constraint(at~ : Int32, name~ : String)
   /// A signature algorithm this validator does not check.
   Algorithm(at~ : Int32, oid~ : String)
+  /// The key that signed the certificate at `at` is an RSA key below the policy's `bits`.
+  Weak(at~ : Int32)
+  /// More name-constraint comparisons than the policy allows: a CA with thousands of subtrees
+  /// over a leaf with thousands of names is a quadratic amount of work.
+  Comparisons(limit~ : Int32)
 } derive(Eq, Debug)
 
 ///|
@@ -51,7 +56,6 @@ pub(all) enum Usage {
 } derive(Eq, Debug)
 
 ///|
-/// The OID a usage asks for, `None` for `Any`.
 fn Usage::oid(self : Usage) -> String? {
   match self {
     Server => Some(eku_server_auth)
@@ -63,16 +67,27 @@ fn Usage::oid(self : Usage) -> String? {
 
 ///|
 /// What a validation asks for and how far it may go. `depth` bounds the intermediates on the
-/// path and `budget` the signature checks spent finding it; the presets are webpki's.
+/// path, `budget` the signature checks spent finding it, `comparisons` the name-constraint
+/// comparisons, and `bits` the smallest RSA modulus a signature is accepted under.
 pub(all) struct Policy {
   usage : Usage
   depth : Int32
   budget : Int32
+  comparisons : Int32
+  bits : Int32
 } derive(Eq, Debug)
 
 ///|
-/// A server certificate, at most six intermediates, at most a hundred signature checks.
-pub let policy : Policy = { usage: Server, depth: 6, budget: 100, }
+/// A server certificate; webpki's limits — six intermediates, a hundred signature checks, a
+/// quarter of a million name-constraint comparisons; RSA keys of 2048 bits and up (CA/Browser
+/// Forum Baseline Requirements §6.1.5).
+pub let policy : Policy = {
+  usage: Server,
+  depth: 6,
+  budget: 100,
+  comparisons: 250_000,
+  bits: 2048,
+}
 
 ///|
 /// A policy with any field changed from the preset.
@@ -80,8 +95,10 @@ pub fn Policy::new(
   usage~ : Usage = policy.usage,
   depth~ : Int32 = policy.depth,
   budget~ : Int32 = policy.budget,
+  comparisons~ : Int32 = policy.comparisons,
+  bits~ : Int32 = policy.bits,
 ) -> Policy {
-  { usage, depth, budget, }
+  { usage, depth, budget, comparisons, bits, }
 }
 
 ///|
@@ -140,7 +157,6 @@ pub fn Roots::iter(self : Roots) -> Iter[Cert] {
 }
 
 ///|
-/// The anchors whose subject is `name`, byte for byte.
 fn Roots::named(self : Roots, name : Bytes) -> Array[Cert] {
   match self.by_subject.get(name) {
     Some(ids) => ids.map(i => self.certs[i])
@@ -209,6 +225,7 @@ pub fn verify(
     now,
     policy,
     spent: 0,
+    compared: 0,
     first: None,
     path: [(leaf, 0)],
   }
@@ -223,7 +240,6 @@ pub fn verify(
 }
 
 ///|
-/// The checks every certificate on the path but the anchor takes.
 fn check_common(c : Cert, at : Int32, now : Int64) -> Unit raise Refused {
   if c.exts.unknown_critical.get(0) is Some(oid) {
     raise Critical(at~, oid~)
@@ -248,13 +264,13 @@ fn allows(eku : Array[String]?, usage : Usage) -> Bool {
 }
 
 ///|
-/// The state of one path search.
 priv struct Search {
   certs : Array[Cert]
   roots : Roots
   now : Int64
   policy : Policy
   mut spent : Int32
+  mut compared : Int32
   mut first : Refused?
   path : Array[(Cert, Int32)]
 }
@@ -280,6 +296,10 @@ fn Search::signed(
   if self.spent > self.policy.budget {
     raise Budget(limit=self.policy.budget)
   }
+  if rsa_bits(issuer) is Some(n) && n < self.policy.bits {
+    self.note(Weak(at~))
+    return false
+  }
   let ok = child.signed_by(issuer) catch {
     @asn1.Unsupported(_) => {
       self.note(Algorithm(at~, oid=child.alg))
@@ -297,7 +317,19 @@ fn Search::signed(
 }
 
 ///|
-/// Extend the path from its last certificate to an anchor, depth first.
+fn rsa_bits(spki : Spki) -> Int32? {
+  guard (spki.key() catch { _ => return None }) is Rsa(k) else { return None }
+  let n = k.modulus()
+  guard n.length() > 0 else { return Some(0) }
+  let top = n[0].to_int()
+  let mut lead = 0
+  while lead < 8 && (top & (0x80 >> lead)) == 0 {
+    lead = lead + 1
+  }
+  Some(n.length() * 8 - lead)
+}
+
+///|
 fn Search::grow(self : Search) -> Array[Cert]? raise Refused {
   let (child, child_at) = self.path[self.path.length() - 1]
   for anchor in self.roots.named(child.issuer.raw) {
@@ -362,7 +394,6 @@ fn Search::candidates(self : Search, child : Cert) -> Array[Int32] {
 }
 
 ///|
-/// Whether `cand` may issue for a path with `below` intermediates under it.
 fn Search::issuer_ok(
   self : Search,
   cand : Cert,
@@ -386,8 +417,7 @@ fn Search::issuer_ok(
 }
 
 ///|
-/// The first name constraint the finished path breaks, with `anchor` on top of it, or `None`.
-fn Search::constrained(self : Search, anchor : Cert) -> Refused? {
+fn Search::constrained(self : Search, anchor : Cert) -> Refused? raise Refused {
   let path = self.path
   let tops : Array[(Cert, Int32)] = [(anchor, path.length())]
   for k in 1..<path.length() {
@@ -398,7 +428,7 @@ fn Search::constrained(self : Search, anchor : Cert) -> Refused? {
     guard ca.exts.constraints is Some(nc) else { continue }
     for i in 0..<k {
       let (c, at) = path[i]
-      if outside(c, nc) is Some(name) {
+      if self.outside(c, nc) is Some(name) {
         return Some(Constraint(at~, name~))
       }
     }
@@ -407,8 +437,6 @@ fn Search::constrained(self : Search, anchor : Cert) -> Refused? {
 }
 
 ///|
-/// The names a certificate is held to under a constraint: its subjectAltName entries and, when
-/// it is not empty, its subject as a directoryName.
 fn names_of(c : Cert) -> Array[GeneralName] {
   let out = c.exts.san.copy()
   if c.subject.rdns.length() > 0 {
@@ -418,7 +446,6 @@ fn names_of(c : Cert) -> Array[GeneralName] {
 }
 
 ///|
-/// The kind a GeneralName is, as its field number.
 fn kind_of(g : GeneralName) -> Int32 {
   match g {
     Email(_) => 1
@@ -431,8 +458,22 @@ fn kind_of(g : GeneralName) -> Int32 {
 }
 
 ///|
-/// The first of `c`'s names that falls outside `nc`, as text, or `None`.
-fn outside(c : Cert, nc : Constraints) -> String? {
+/// Which list of subtrees a name is being held to. A wildcard name is read differently by the
+/// two: under a permitted subtree it stands for itself, under an excluded one for every name it
+/// could expand to (webpki's reading, after CVE-2025-61727).
+priv enum Subtrees {
+  Permitted
+  Excluded
+}
+
+///|
+/// The first of `c`'s names that falls outside `nc`, as text, or `None`. Every comparison
+/// spends one from `policy.comparisons`.
+fn Search::outside(
+  self : Search,
+  c : Cert,
+  nc : Constraints,
+) -> String? raise Refused {
   for name in names_of(c) {
     let kind = kind_of(name)
     let permitted = nc.permitted.filter(g => kind_of(g) == kind)
@@ -441,7 +482,7 @@ fn outside(c : Cert, nc : Constraints) -> String? {
     if permitted.length() > 0 {
       bad = true
       for p in permitted {
-        match within(name, p) {
+        match self.within(name, p, Permitted) {
           Some(true) => bad = false
           Some(false) => ()
           None => return Some(show_name(name))
@@ -449,7 +490,7 @@ fn outside(c : Cert, nc : Constraints) -> String? {
       }
     }
     for x in excluded {
-      match within(name, x) {
+      match self.within(name, x, Excluded) {
         Some(true) | None => bad = true
         Some(false) => ()
       }
@@ -462,7 +503,6 @@ fn outside(c : Cert, nc : Constraints) -> String? {
 }
 
 ///|
-/// A GeneralName as text, for a refusal.
 fn show_name(g : GeneralName) -> String {
   match g {
     Dns(s) | Email(s) | Uri(s) => s
@@ -473,16 +513,23 @@ fn show_name(g : GeneralName) -> String {
 }
 
 ///|
-/// Whether `name` lies inside the subtree `base` (RFC 5280 §4.2.1.10), or `None` when the form
-/// is one this validator cannot judge.
-fn within(name : GeneralName, base : GeneralName) -> Bool? {
+fn Search::within(
+  self : Search,
+  name : GeneralName,
+  base : GeneralName,
+  role : Subtrees,
+) -> Bool? raise Refused {
+  self.compared = self.compared + 1
+  if self.compared > self.policy.comparisons {
+    raise Comparisons(limit=self.policy.comparisons)
+  }
   match (name, base) {
-    (Dns(n), Dns(b)) => Some(dns_within(n, b))
+    (Dns(n), Dns(b)) => dns_within(n, b, role)
     (Email(n), Email(b)) => Some(email_within(n, b))
     (Uri(n), Uri(b)) =>
       match uri_host(n) {
-        Some(h) => Some(ip_literal(h) is None && dns_within(h, b))
-        None => None
+        Some(h) if ip_literal(h) is None => Some(host_within(h, b))
+        _ => None
       }
     (Ip(n), Ip(b)) => Some(ip_within(n, b))
     (Dir(n), Dir(b)) => Some(dir_within(n, b))
@@ -491,19 +538,48 @@ fn within(name : GeneralName, base : GeneralName) -> Bool? {
 }
 
 ///|
-/// A DNS name under a dNSName constraint: equal, or a subdomain of it; a constraint written
-/// with a leading dot admits subdomains only (the Go and OpenSSL reading). The empty constraint
-/// admits every name. Case is ignored.
-fn dns_within(name : String, base : String) -> Bool {
+/// A DNS name under a dNSName constraint: equal, or a subdomain of it; a constraint written with
+/// a leading dot admits subdomains only, the empty one every name; case is ignored. A wildcard
+/// name under an excluded subtree is expanded one label, so `*.example.com` falls under an
+/// exclusion of `bar.example.com`. `None` when either side is not a well-formed DNS name.
+fn dns_within(name : String, base : String, role : Subtrees) -> Bool? {
+  if !dns_id(name, wildcard=true, constraint=false) ||
+    !dns_id(base, wildcard=false, constraint=true) {
+    return None
+  }
   let n = name.to_lower()
   let b = base.to_lower()
   if b.length() == 0 {
-    return true
+    return Some(true)
   }
+  let under = if b.has_prefix(".") {
+    n.has_suffix(b)
+  } else {
+    n == b || n.has_suffix("." + b)
+  }
+  if under {
+    return Some(true)
+  }
+  if role is Excluded && n.strip_prefix("*") is Some(rest) {
+    guard b.split_once(".") is Some((label, parent)) && label.length() > 0 else {
+      return Some(false)
+    }
+    return Some("." + parent.to_owned() == rest.to_owned())
+  }
+  Some(false)
+}
+
+///|
+/// The host of a URI under a URI constraint: the host itself, or with a leading dot any host
+/// below it. Unlike a dNSName constraint, one without the dot names exactly one host.
+fn host_within(host : String, base : String) -> Bool {
+  let h = host.to_lower()
+  let b = base.to_lower()
   if b.has_prefix(".") {
-    return n.has_suffix(b)
+    h.has_suffix(b)
+  } else {
+    h == b
   }
-  n == b || n.has_suffix("." + b)
 }
 
 ///|
@@ -524,8 +600,6 @@ fn email_within(name : String, base : String) -> Bool {
 }
 
 ///|
-/// An address under an iPAddress constraint: same family, and equal to the constraint's address
-/// in every bit its mask sets.
 fn ip_within(addr : Bytes, base : Bytes) -> Bool {
   let n = addr.length()
   if base.length() != 2 * n {
@@ -541,8 +615,6 @@ fn ip_within(addr : Bytes, base : Bytes) -> Bool {
 }
 
 ///|
-/// A directoryName under a directoryName constraint: the constraint's RDNs are a prefix of the
-/// name's, compared by encoding.
 fn dir_within(name : Name, base : Name) -> Bool {
   let (ns, bs) = (rdn_raws(name), rdn_raws(base)) catch { _ => return false }
   if bs.length() > ns.length() {
@@ -557,7 +629,6 @@ fn dir_within(name : Name, base : Name) -> Bool {
 }
 
 ///|
-/// `s` up to the first `sep`, or all of it.
 fn before(s : String, sep : String) -> String {
   match s.split_once(sep) {
     Some((a, _)) => a.to_owned()
@@ -566,8 +637,6 @@ fn before(s : String, sep : String) -> String {
 }
 
 ///|
-/// The host of a URI: after `scheme://` and any userinfo, before the port, path, query or
-/// fragment; `None` when there is no authority.
 fn uri_host(uri : String) -> String? {
   guard uri.split_once("://") is Some((_, rest)) else { return None }
   let authority = before(before(before(rest.to_owned(), "/"), "?"), "#")
@@ -586,6 +655,35 @@ fn uri_host(uri : String) -> String? {
     Some(h)
   }
 }
+
+///|
+pub impl Show for Refused with fn output(self, logger) {
+  let text = match self {
+    Malformed(at~, m) => "certificate \{at} is malformed: " + m
+    Expired(at~) => "certificate \{at} has expired"
+    Premature(at~) => "certificate \{at} is not yet valid"
+    Issuer => "no issuer among the intermediates or the anchors"
+    Authority(at~) => "certificate \{at} acts outside its authority"
+    Signature(at~) => "the signature on certificate \{at} does not verify"
+    Depth(limit~) => "more than \{limit} intermediates"
+    Budget(limit~) => "more than \{limit} signature checks"
+    Host(h) => "the certificate does not name " + h
+    Purpose(at~) => "certificate \{at} does not allow the purpose asked for"
+    Critical(at~, oid~) =>
+      "certificate \{at} has an unknown critical extension " + oid
+    Constraint(at~, name~) =>
+      "certificate \{at} names " + name + " outside a name constraint"
+    Algorithm(at~, oid~) =>
+      "certificate \{at} is signed with an unsupported algorithm " + oid
+    Weak(at~) =>
+      "certificate \{at} is signed with an RSA key below the policy's bits"
+    Comparisons(limit~) => "more than \{limit} name-constraint comparisons"
+  }
+  logger.write_string(text)
+}
+
+///|
+pub extend Refused with Show::{to_string, output}
 
 ///|
 pub extend Refused with Eq::{equal, not_equal}

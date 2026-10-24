@@ -60,10 +60,15 @@ pub(all) suberror Refused {
   Critical(at~ : Int32, oid~ : String)
   Constraint(at~ : Int32, name~ : String)
   Algorithm(at~ : Int32, oid~ : String)
+  Weak(at~ : Int32)
+  Comparisons(limit~ : Int32)
 } derive(Eq, @debug.Debug)
 pub fn Refused::equal(Self, Self) -> Bool
 pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::output(Self, &Logger) -> Unit
 pub fn Refused::to_repr(Self) -> @debug.Repr
+pub fn Refused::to_string(Self) -> String
+pub impl Show for Refused
 
 // Types and methods
 pub(all) struct Attr {
@@ -147,9 +152,11 @@ pub(all) struct Policy {
   usage : Usage
   depth : Int32
   budget : Int32
+  comparisons : Int32
+  bits : Int32
 } derive(Eq, @debug.Debug)
 pub fn Policy::equal(Self, Self) -> Bool
-pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32) -> Self
+pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32, comparisons? : Int32, bits? : Int32) -> Self
 pub fn Policy::not_equal(Self, Self) -> Bool
 pub fn Policy::to_repr(Self) -> @debug.Repr
 

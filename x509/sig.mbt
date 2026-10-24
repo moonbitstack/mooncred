@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 ///|
-/// How a certificate's signature is checked: the scheme its algorithm names, with the digest.
 priv enum Scheme {
   Pkcs1(@rsa.Digest)
   Pss(@rsa.Digest)
@@ -27,7 +26,6 @@ fn pss_digest(t : @asn1.Tlv) -> @rsa.Digest raise @asn1.Refused {
 }
 
 ///|
-/// The octet length of a digest.
 fn digest_size(d : @rsa.Digest) -> Int32 {
   match d {
     Sha1 => 20
@@ -185,7 +183,6 @@ pub fn Cert::signed_by(self : Cert, issuer : Spki) -> Bool raise @asn1.Refused {
 }
 
 ///|
-/// `k` re-read with the digest and scheme a signature names.
 fn rsa_with(
   k : @rsa.PublicKey,
   digest : @rsa.Digest,
