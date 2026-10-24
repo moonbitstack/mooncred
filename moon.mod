@@ -1,6 +1,6 @@
 name = "moonbitstack/mooncred"
 
-version = "0.6.3"
+version = "0.6.4"
 
 readme = "README.md"
 
@@ -25,6 +25,6 @@ description = "mooncred — credential formats for MoonBit: JSON Web Tokens, JWS
 
 import {
   "moonbitstack/moonbase@0.4.0",
-  "moonbitstack/mooncrypt@0.4.1",
+  "moonbitstack/mooncrypt@0.4.2",
   "moonbitstack/moonjson@0.4.0",
 }

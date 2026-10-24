@@ -22,7 +22,7 @@ let got = @jwt.verify(token[:], HS256, key, now=now_seconds,
 |:--:|:--|:--|
 | `jwt` | JWS compact serialisation, all thirteen JOSE algorithms | RFC 7515, 7518, 7519, 8037 |
 | `jwk` | JSON Web Key and key sets: reading, writing, choosing | RFC 7517, RFC 7518 §6 |
-| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA or Ed25519, match it against a host, validate a chain to a set of trust anchors; build a self-signed P-256 one | RFC 5280, RFC 6125, RFC 7468 |
+| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA or Ed25519, match it against a host, validate a chain to a set of trust anchors; build a self-signed P-256 one; read the private key that goes with it | RFC 5280, RFC 6125, RFC 7468, RFC 5958, RFC 5915 |
 | `roots` | The Mozilla CA store as trust anchors, from curl's extract | — |
 
 ## The algorithm is not the token's to choose
@@ -165,6 +165,18 @@ The two limits and the purpose are a `Policy`, with `policy` as the preset.
 `roots` is its own package, so a program that brings its own anchors never
 links the bundle. The certificates are checked against the SHA-256 fingerprints
 curl lists beside them.
+
+The key a server signs with reads from any file `openssl` writes:
+
+```moonbit
+let key = @x509.PrivateKey::pem(text)     // PRIVATE KEY, EC PRIVATE KEY, RSA PRIVATE KEY
+key.public() == cert.spki.key()           // whether the two belong together
+```
+
+PKCS#8, SEC1 and PKCS#1 are told apart by their structure, so `PrivateKey::read`
+takes the DER of any of them. A key whose parts disagree (primes that do not
+make the modulus, an embedded public point that is not its own, two curves) is
+`Malformed`; an encrypted key is `Unsupported`.
 
 ## What is checked
 

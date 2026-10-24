@@ -137,6 +137,9 @@ pub(all) enum Key {
   Ec(@ecdsa.PublicKey)
   Ed25519(@ed25519.PublicKey)
 }
+pub fn Key::equal(Self, Self) -> Bool
+pub fn Key::not_equal(Self, Self) -> Bool
+pub impl Eq for Key
 
 pub(all) struct Name {
   rdns : Array[Array[Attr]]
@@ -159,6 +162,15 @@ pub fn Policy::equal(Self, Self) -> Bool
 pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32, comparisons? : Int32, bits? : Int32) -> Self
 pub fn Policy::not_equal(Self, Self) -> Bool
 pub fn Policy::to_repr(Self) -> @debug.Repr
+
+pub(all) enum PrivateKey {
+  Rsa(@rsa.PrivateKey)
+  Ec(@ecdsa.PrivateKey)
+  Ed25519(@ed25519.PrivateKey)
+}
+pub fn PrivateKey::pem(String) -> Self raise @asn1.Refused
+pub fn PrivateKey::public(Self) -> Key
+pub fn PrivateKey::read(BytesView) -> Self raise @asn1.Refused
 
 pub struct Roots {
   // private fields

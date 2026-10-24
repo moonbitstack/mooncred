@@ -1,10 +1,11 @@
 // X.509 v3 certificates and certification paths, RFC 5280: https://www.rfc-editor.org/rfc/rfc5280
 // Service identity, RFC 6125: https://www.rfc-editor.org/rfc/rfc6125
 // PEM, RFC 7468: https://www.rfc-editor.org/rfc/rfc7468
+// Private keys, RFC 5958, RFC 5915, RFC 8017 §A.1.2: https://www.rfc-editor.org/rfc/rfc5958
 //
 // Read a certificate down to its extensions, check its signature under RSA, ECDSA or Ed25519,
 // match it against a host name or address, and validate a chain to a set of trust anchors.
-// Writes the self-signed P-256 certificate a TLS server needs.
+// Writes the self-signed P-256 certificate a TLS server needs, and reads its private key.
 import {
   "moonbitstack/mooncrypt/asn1",
   "moonbitstack/mooncrypt/curve",
