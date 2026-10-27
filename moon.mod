@@ -21,7 +21,7 @@ keywords = [
   "moonbit",
 ]
 
-description = "mooncred — credential formats for MoonBit: JSON Web Tokens, JWS and JWK with the JOSE algorithm set, and X.509 certificates with chain validation to the Mozilla roots, built on mooncrypt's algorithms."
+description = "Credentials for MoonBit: JWT, JWK and X.509."
 
 import {
   "moonbitstack/moonbase@0.4.0",
