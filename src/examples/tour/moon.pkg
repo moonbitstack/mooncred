@@ -1,4 +1,4 @@
-// Issuing and checking a token, end to end: `moon run examples/tour`.
+// Issuing and checking a token, end to end: `moon run src/examples/tour`.
 pkgtype(kind: "executable")
 
 import {

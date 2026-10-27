@@ -1,4 +1,4 @@
-"""Write roots/bundle.mbt from curl's extract of the Mozilla CA certificate store.
+"""Write src/roots/bundle.mbt from curl's extract of the Mozilla CA certificate store.
 
     python scripts/gen_roots.py            # fetch https://curl.se/ca/cacert.pem
     python scripts/gen_roots.py FILE       # use a copy already on disk
@@ -13,7 +13,7 @@ import sys
 import urllib.request
 
 URL = "https://curl.se/ca/cacert.pem"
-OUT = pathlib.Path(__file__).resolve().parent.parent / "roots" / "bundle.mbt"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "src" / "roots" / "bundle.mbt"
 
 
 def fetch():

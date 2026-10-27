@@ -1,4 +1,4 @@
-"""Write x509/keys_test.mbt: private keys in every form the reader takes, and broken ones.
+"""Write src/x509/keys_test.mbt: private keys in every form the reader takes, and broken ones.
 
 The well-formed keys are written by Python's `cryptography` (OpenSSL); the broken ones are
 assembled here from the same keys, one defect each. Rerun after changing a case.
@@ -10,7 +10,7 @@ import pathlib
 from cryptography.hazmat.primitives import serialization as ser
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa, x25519
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "x509" / "keys_test.mbt"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "src" / "x509" / "keys_test.mbt"
 
 OID_EC = "1.2.840.10045.2.1"
 OID_ED25519 = "1.3.101.112"

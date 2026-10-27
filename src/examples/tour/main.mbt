@@ -5,7 +5,7 @@
 /// A token issued and checked twice over — once with a shared secret, once with
 /// a key pair read out of a JWK.
 ///
-///     moon run examples/tour
+///     moon run src/examples/tour
 #coverage.skip
 fn main raise {
   let claims : Map[String, Json] = Map([])

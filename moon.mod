@@ -28,3 +28,5 @@ import {
   "moonbitstack/mooncrypt@0.4.2",
   "moonbitstack/moonjson@0.4.0",
 }
+
+source = "src"

@@ -1,4 +1,4 @@
-"""Write x509/chains_test.mbt: the certificate chains the path-validation tests run on.
+"""Write src/x509/chains_test.mbt: the certificate chains the path-validation tests run on.
 
 Every chain is issued fresh by Python's `cryptography` (OpenSSL), so the validator is checked
 against certificates it did not write. Rerun after changing a scenario; the keys are new each
@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, padding, rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "x509" / "chains_test.mbt"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "src" / "x509" / "chains_test.mbt"
 START = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
 END = dt.datetime(2040, 1, 1, tzinfo=dt.timezone.utc)
 
