@@ -1,0 +1,7 @@
+// Certificate policies, RFC 5280 §6.1: https://www.rfc-editor.org/rfc/rfc5280#section-6.1
+//
+// Additive: path validation in `x509` is untouched, and a caller that never asks for a policy
+// never links this.
+import {
+  "moonbitstack/mooncrypt/asn1",
+}

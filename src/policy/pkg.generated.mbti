@@ -1,0 +1,38 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/policy"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub let any_policy : String
+
+pub fn policies(Array[Cert], initial~ : Array[String], any? : Bool) -> Array[String]
+
+pub fn read(BytesView) -> Cert raise Refused
+
+// Errors
+pub(all) suberror Refused {
+  Malformed(String)
+} derive(Eq, @debug.Debug)
+pub fn Refused::equal(Self, Self) -> Bool
+pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct Cert {
+  policies : Array[String]?
+  mappings : Array[(String, String)]
+  require_explicit : Int32?
+  inhibit_mapping : Int32?
+  inhibit_any : Int32?
+} derive(Eq, @debug.Debug)
+pub fn Cert::empty() -> Self
+pub fn Cert::equal(Self, Self) -> Bool
+pub fn Cert::not_equal(Self, Self) -> Bool
+pub fn Cert::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
