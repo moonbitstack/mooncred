@@ -1,0 +1,18 @@
+// PKCS#10 certification requests, RFC 2986: https://www.rfc-editor.org/rfc/rfc2986
+// Attributes, RFC 2985: https://www.rfc-editor.org/rfc/rfc2985
+//
+// Read the request a client sends before it has a certificate, check the signature that proves
+// it holds the key it asks to have certified, and write one for a key in hand.
+import {
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/rsa",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/spec",
+}
+
+// The fixtures are PEM, and the tampered one is base64 without an envelope.
+import {
+  "moonbitstack/moonbase/base64",
+} for "wbtest"

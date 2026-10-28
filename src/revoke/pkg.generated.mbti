@@ -1,0 +1,95 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/revoke"
+
+import {
+  "moonbitlang/core/bigint",
+  "moonbitlang/core/debug",
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/asn1",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub(all) struct Basic {
+  tbs : BytesView
+  responder : Responder
+  produced_at : Int64
+  responses : Array[Single]
+  alg : String
+  params : Bytes?
+  sig : @asn1.Bits
+}
+pub fn Basic::fresh(Self, Int64) -> Bool
+pub fn Basic::signed_by(Self, @x509.Spki) -> Bool raise @asn1.Refused
+
+pub(all) struct Crl {
+  raw : BytesView
+  tbs : BytesView
+  issuer : @x509.Name
+  this_update : Int64
+  next_update : Int64?
+  entries : Array[Entry]
+  alg : String
+  params : Bytes?
+  sig : @asn1.Bits
+}
+pub fn Crl::fresh(Self, Int64) -> Bool
+pub fn Crl::parse(BytesView) -> Self raise @asn1.Refused
+pub fn Crl::pem(String) -> Self raise @asn1.Refused
+pub fn Crl::signed_by(Self, @x509.Spki) -> Bool raise @asn1.Refused
+pub fn Crl::status(Self, @x509.Cert) -> Status
+
+pub(all) struct Entry {
+  serial : @bigint.BigInt
+  revoked : Revoked
+}
+
+pub(all) struct Ocsp {
+  raw : BytesView
+  status : Int32
+  basic : Basic?
+}
+pub fn Ocsp::parse(BytesView) -> Self raise @asn1.Refused
+pub fn Ocsp::status(Self, @x509.Cert, @x509.Cert) -> Status raise @asn1.Refused
+
+pub(all) enum Responder {
+  ByName(@x509.Name)
+  ByKey(Bytes)
+} derive(Eq, @debug.Debug)
+pub fn Responder::equal(Self, Self) -> Bool
+pub fn Responder::not_equal(Self, Self) -> Bool
+pub fn Responder::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Revoked {
+  at : Int64
+  reason : Int32?
+} derive(Eq, @debug.Debug)
+pub fn Revoked::equal(Self, Self) -> Bool
+pub fn Revoked::not_equal(Self, Self) -> Bool
+pub fn Revoked::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Single {
+  hash : String
+  issuer_name_hash : Bytes
+  issuer_key_hash : Bytes
+  serial : @bigint.BigInt
+  status : Status
+  this_update : Int64
+  next_update : Int64?
+}
+
+pub(all) enum Status {
+  Good
+  Revoked(Revoked)
+  Unknown
+} derive(Eq, @debug.Debug)
+pub fn Status::equal(Self, Self) -> Bool
+pub fn Status::not_equal(Self, Self) -> Bool
+pub fn Status::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

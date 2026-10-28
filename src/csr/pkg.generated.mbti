@@ -1,0 +1,38 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/csr"
+
+import {
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/asn1",
+}
+
+// Values
+pub fn parse(BytesView) -> Request raise @asn1.Refused
+
+pub fn self_signed(@x509.PrivateKey, subject~ : Bytes, exts? : @x509.Exts?) -> Bytes raise @asn1.Refused
+
+pub fn self_signed_pem(@x509.PrivateKey, subject~ : Bytes, exts? : @x509.Exts?) -> String raise @asn1.Refused
+
+// Errors
+
+// Types and methods
+pub(all) struct Request {
+  raw : BytesView
+  tbs : BytesView
+  subject : @x509.Name
+  spki : @x509.Spki
+  exts : @x509.Exts
+  alg : String
+  params : Bytes?
+  sig : @asn1.Bits
+}
+pub fn Request::asks_for(Self, @x509.Key) -> Bool
+pub fn Request::der(Self) -> BytesView
+pub fn Request::pem(String) -> Self raise @asn1.Refused
+pub fn Request::to_pem(Self) -> String
+pub fn Request::verified(Self) -> Bool raise @asn1.Refused
+
+// Type aliases
+pub using @x509 {type Key}
+
+// Traits

@@ -1,0 +1,48 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/pkcs12"
+
+import {
+  "moonbitstack/mooncred/pbe",
+}
+
+// Values
+pub fn build(certs~ : ArrayView[Bytes], key~ : Bytes?, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, mac_salt~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32, mac_rounds? : Int32) -> Bytes raise Refused
+
+pub fn parse(BytesView) -> Pfx raise Refused
+
+// Errors
+pub(all) suberror Refused {
+  Malformed(String)
+  Unsupported(String)
+  Passphrase
+}
+
+// Types and methods
+pub(all) struct Contents {
+  certs : Array[Bytes]
+  key : Bytes?
+}
+
+pub(all) struct Mac {
+  alg : String
+  digest : Bytes
+  salt : Bytes
+  iterations : Int32
+}
+
+pub(all) struct Pfx {
+  raw : BytesView
+  version : Int32
+  auth_safe : BytesView
+  mac : Mac?
+}
+pub fn Pfx::contents(Self, passphrase~ : StringView) -> Contents raise Refused
+pub fn Pfx::has_mac(Self) -> Bool
+pub fn Pfx::verify(Self, passphrase~ : StringView) -> Bool raise Refused
+
+// Type aliases
+pub using @pbe {type Prf}
+
+pub using @pbe {type Scheme}
+
+// Traits

@@ -1,0 +1,19 @@
+// Signed tokens: HMAC over the caller's own octets, in a string a URL or a cookie can carry.
+//
+// The shape is itsdangerous': a base64url payload, a base64url timestamp, and a base64url tag,
+// separated by dots. What keeps two uses of one key apart is the salt, which is hashed into the
+// tag and never travels with it, so a token signed for one purpose cannot be replayed against
+// another even though the key is the same.
+import {
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonbase/base64",
+  "moonbitlang/core/encoding/utf8",
+}
+
+// The tests carry payloads as UTF-8 and read the token back as base64url.
+import {
+  "moonbitstack/moonbase/base64",
+  "moonbitlang/core/encoding/utf8",
+} for "test"

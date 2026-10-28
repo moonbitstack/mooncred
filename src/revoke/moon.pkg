@@ -1,0 +1,18 @@
+// Certificate revocation, RFC 5280 §5: https://www.rfc-editor.org/rfc/rfc5280
+// Online Certificate Status Protocol, RFC 6960: https://www.rfc-editor.org/rfc/rfc6960
+//
+// Both answer the same question — is this certificate still good — and neither answers it about
+// the network. Fetching a list or a response is the caller's business; reading one, checking that
+// the issuer signed it, and deciding what it says about a certificate is this package's.
+import {
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/hash/sha1",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/spec",
+}
+
+// The OCSP responses are hex, since DER does not fit in a PEM envelope.
+import {
+  "moonbitstack/moonbase/base16",
+} for "wbtest"

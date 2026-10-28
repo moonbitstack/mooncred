@@ -1,0 +1,21 @@
+// PKCS#12 personal information exchange, RFC 7292: https://www.rfc-editor.org/rfc/rfc7292
+// PKCS#7 content types, RFC 5652 §3: https://www.rfc-editor.org/rfc/rfc5652
+//
+// Read and write the container a key and its certificates travel in: the AuthenticatedSafe, the
+// SafeBags inside it, both ways of encrypting a bag, and the digest that ties the whole file to
+// the passphrase. The file's MAC is checked before anything is decrypted, because a container
+// that does not authenticate should not be asked to decrypt.
+import {
+  "moonbitstack/mooncred/pbe",
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/hash/sha1",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/spec",
+}
+
+// The fixtures are hex and the certificates beside them are PEM.
+import {
+  "moonbitstack/moonbase/base16",
+  "moonbitstack/moonbase/base64",
+} for "wbtest"
