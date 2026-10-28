@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>mooncred — credentials, read and written</title>
+<meta name="description" content="Thirteen packages for the credentials a system must trust and the ones it must present. Apache-2.0.">
+<style>
+/* ------------------------------------------------------------------ tokens */
+:root {
+  --desk-0: #171110;
+  --desk-1: #0c0908;
+  --paper: #EADDC3;
+  --paper-hi: #F8F0DE;
+  --ink: #211910;
+  --ink-soft: #57462F;
+  --ink-faint: #8B7658;
+  --rule: rgba(58, 42, 26, 0.20);
+  --wax: #8C2A21;
+  --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --ease-out: cubic-bezier(.16, .84, .24, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;              /* no scrollbars, anywhere, ever */
+  background: var(--desk-1);
+  color: var(--paper);
+  font-family: var(--serif);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+.defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ------------------------------------------------------------------- stage */
+#stage {
+  --env-w: min(92vw, 1200px, 150vh);
+  --env-h: calc(var(--env-w) / 1.618);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1700px;
+  perspective-origin: 50% 26%;
+  isolation: isolate;
+}
+
+/* the desk: an old walnut board, lit from the upper left, going dark at the
+   corners. It has to be a surface, not a black void — the envelope is only
+   convincing if it is lying on something. */
+#desk {
+  position: absolute;
+  inset: -8%;
+  background:
+    radial-gradient(108% 88% at 39% 22%, #4C3522 0%, #3D2A19 28%, #2F2115 52%, #241A12 74%, #1B1410 90%, #14100D 100%);
+}
+#desk .lamplight {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(44% 38% at 33% 2%, rgba(255, 206, 146, .22) 0%, rgba(255, 186, 120, .075) 42%, transparent 74%),
+    radial-gradient(66% 58% at 84% 96%, rgba(132, 96, 58, .10) 0%, transparent 64%);
+}
+#desk .vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(126% 104% at 47% 38%, transparent 30%, rgba(0, 0, 0, .22) 72%, rgba(0, 0, 0, .52) 100%);
+}
+.tex-layer { position: absolute; inset: 0; pointer-events: none; }
+/* light and shadow, not colour: on a dark board a multiply layer is invisible */
+.tex-layer.wood  { filter: url(#f-wood);   mix-blend-mode: overlay; opacity: .55; }
+.tex-layer.cloud { filter: url(#f-cloud);  mix-blend-mode: soft-light; opacity: .16; }
+.tex-layer.fibre { filter: url(#f-relief); mix-blend-mode: soft-light; opacity: .14; }
+
+#envshadow {
+  position: absolute;
+  left: 50%;
+  top: 46.2%;
+  width: var(--env-w);
+  aspect-ratio: 1.618 / 1;
+  transform: translate(-50%, -50%) rotate(-.35deg) scale(1.008);
+  border-radius: 2px;
+  transition: opacity 1s .45s ease;
+  box-shadow:
+    0 14px 30px 1px rgba(5, 3, 1, .50),
+    0 30px 70px 6px rgba(5, 3, 1, .62),
+    0 48px 130px 20px rgba(5, 3, 1, .46);
+}
+
+.open #envshadow { opacity: 0; }
+
+/* ---------------------------------------------------------------- envelope */
+#envelope {
+  position: absolute;
+  left: 50%;
+  top: 45.5%;
+  width: var(--env-w);
+  aspect-ratio: 1.618 / 1;
+  transform: translate(-50%, -50%) rotate(-.35deg);
+  transform-style: preserve-3d;
+  transition: transform 1.6s var(--ease-out), filter 1.6s ease;
+  will-change: transform;
+}
+#envelope .envart {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: opacity .7s .3s ease;
+}
+/* once the letter is out there is no envelope left on the desk, only the front
+   it was standing in — the rest withdraws */
+.open .envart { opacity: 0; }
+
+/* the flap, hinged at the envelope's top edge */
+.flap3d {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 0;
+  transform-style: preserve-3d;
+}
+/* A filter anywhere in the chain flattens the 3D context, so backface culling cannot be
+   relied on: the flap is faded out at the moment it turns edge-on instead. */
+.opening .flap3d { animation: flap-open .92s cubic-bezier(.42, 0, .3, 1) forwards; }
+/* Positive rotateX: the flap lifts toward the reader and turns edge-on, instead of
+   swinging behind the opaque face, where it would vanish on the first frame. */
+@keyframes flap-open {
+  0%   { transform: rotateX(0deg);   opacity: 1; }
+  54%  { transform: rotateX(46deg);  opacity: 1; }
+  88%  { transform: rotateX(88deg);  opacity: 1; }
+  100% { transform: rotateX(96deg);  opacity: 0; }
+}
+.flap-face {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 60.2%);
+  backface-visibility: hidden;
+  background:
+    linear-gradient(178deg, rgba(255, 251, 240, .62) 0%, rgba(255, 247, 231, .16) 9%, rgba(120, 96, 66, .04) 44%, rgba(96, 74, 48, .15) 100%),
+    radial-gradient(82% 122% at 24% 0%, #FAF0DC 0%, #F1E4C9 46%, #E4D2B2 82%, #D6C29F 100%);
+}
+.flap-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 253, 245, .8) 0 1.5px, rgba(90, 68, 44, .24) 1.5px 3px, transparent 3px);
+}
+.flap-tex { position: absolute; inset: 0; filter: url(#f-fibre); mix-blend-mode: multiply; opacity: .45; }
+.flap-shade {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 60.2%);
+  background: radial-gradient(118% 148% at 50% -2%,
+    rgba(96, 58, 22, .04) 0%, rgba(88, 52, 20, .30) 46%, rgba(62, 34, 12, .58) 100%);
+  mix-blend-mode: multiply;
+  opacity: 0;
+}
+.opening .flap-shade { animation: flap-shade .92s cubic-bezier(.42, 0, .3, 1) forwards; }
+@keyframes flap-shade {
+  0%   { opacity: 0; }
+  40%  { opacity: .46; }
+  88%  { opacity: .72; }
+  100% { opacity: .78; }
+}
+.flap-lift {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 60.2%);
+  filter: drop-shadow(0 1.2px 0 rgba(255, 253, 244, .75)) drop-shadow(0 2.4px 1.4px rgba(48, 26, 12, .30)) drop-shadow(0 7px 9px rgba(48, 26, 12, .28)) drop-shadow(0 18px 26px rgba(30, 14, 6, .22));
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------- seal */
+/* The wax belongs to the flap: it is drawn inside `.flap3d`, at the flap's own
+   point, so lifting the flap carries it up. It never breaks down the middle —
+   it tears free of the lip left stuck to the front of the envelope. */
+#seal, #sealwax, #lip {
+  position: absolute;
+  left: 50%;
+  top: 60.2%;
+  width: 24%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#seal {
+  z-index: 6;
+  transition: transform .55s var(--ease-out);
+  /* a bare <button> paints a light face, which would show through the wax */
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+#seal:hover  { transform: translate(-50%, -50%) scale(1.02); }
+#seal:active { transform: translate(-50%, -50%) scale(.988); }
+#seal:focus-visible { outline: none; }
+#envelope:has(#seal:hover)  #sealwax { transform: translate(-50%, -50%) scale(1.02); }
+#envelope:has(#seal:active) #sealwax { transform: translate(-50%, -50%) scale(.988); }
+.opening #seal { pointer-events: none; }
+
+.halo {
+  position: absolute;
+  inset: -17%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 226, 200, .5);
+  opacity: 0;
+  animation: breathe 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(.97); opacity: 0; }
+  50%      { transform: scale(1.03); opacity: .32; }
+}
+.opening .halo { animation: none; opacity: 0; }
+
+/* the wax itself: one piece, riding the flap */
+#sealwax { display: block; transition: transform .55s var(--ease-out); }
+#sealwax svg, #lip svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+/* the two fracture edges only exist once the seal is broken */
+.frac-cut, .frac-face { opacity: 0; }
+.opening .frac-cut, .opening .frac-face { opacity: 1; }
+
+/* the stain the wax leaves on the stock: absorbed, uneven, wider than the seal */
+#sealmark {
+  position: absolute;
+  left: 50%;
+  top: 60.2%;
+  width: 27%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.7s .2s ease;
+}
+#sealmark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.opening #sealmark { opacity: .3; }
+
+.crumbs { position: absolute; inset: 0; pointer-events: none; }
+.crumbs i {
+  position: absolute;
+  left: 50%; top: 71%;
+  width: 7px; height: 5px;
+  border-radius: 46%;
+  background: linear-gradient(150deg, #A8443A, #6B1B15);
+  opacity: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+}
+.opening .crumbs i { animation: crumb 1.05s cubic-bezier(.2, .7, .4, 1) forwards; }
+@keyframes crumb {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
+  14%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--dr)) scale(.9); }
+}
+
+/* ----------------------------------------------------------------- letter */
+/* The letter is measured off the envelope, never off the viewport: a sheet wider
+   than its own envelope is the one thing that would break the illusion. */
+#letterclip {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  /* cut at the fold's own line, so what hides the sheet is the envelope's front
+     rather than an invisible edge just below it */
+  clip-path: inset(0 0 calc(54.5% - var(--env-h) / 2 + var(--env-h) * .028) 0);
+}
+#letterclip > #letter { pointer-events: auto; }
+
+#letter {
+  position: absolute;
+  left: 50%;
+  bottom: calc(54.5% - var(--env-h) / 2 + var(--env-h) * .045);
+  width: calc(var(--env-w) * .875);
+  height: calc(var(--env-h) * .905);
+  margin-left: calc(var(--env-w) * -.4375);
+  z-index: 20;
+  transform: translate3d(0, 118%, 0) rotate(0deg);
+  will-change: transform;
+  /* the sheet is lifted off the envelope, so it throws a shadow of its own */
+  filter:
+    drop-shadow(0 2px 2px rgba(28, 14, 6, .30))
+    drop-shadow(0 14px 22px rgba(24, 12, 5, .34))
+    drop-shadow(0 34px 50px rgba(18, 9, 4, .30));
+}
+.opening #letter { animation: letter-rise 1.4s .56s cubic-bezier(.2, .82, .22, 1) forwards; }
+@keyframes letter-rise {
+  0%   { transform: translate3d(0, 118%, 0) rotate(.45deg); }
+  62%  { transform: translate3d(0, -1.2%, 0) rotate(-.35deg); }
+  84%  { transform: translate3d(0, .3%, 0) rotate(-.27deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(-.28deg); }
+}
+
+.sheetpaper {
+  position: absolute;
+  left: -14px; top: -14px;
+  width: calc(100% + 28px);
+  height: calc(100% + 28px);
+  overflow: visible;
+}
+
+/* lamp light falling across the sheet, so it is not evenly lit */
+.paperlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(54% 44% at 20% 6%, rgba(255, 236, 196, .75) 0%, rgba(255, 228, 180, .22) 34%, transparent 66%),
+    linear-gradient(158deg, rgba(255, 240, 210, .18) 0%, transparent 42%, rgba(112, 80, 40, .16) 100%);
+  mix-blend-mode: soft-light;
+}
+
+/* the two fold creases of a letter that has been folded into an envelope */
+.crease { position: absolute; left: 12px; right: 12px; height: 3px; pointer-events: none; }
+.crease.a { top: 33.4%; }
+.crease.b { top: 66.6%; }
+.crease::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1.6px;
+  background: rgba(96, 74, 48, .16);
+}
+.crease::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 1.6px; height: 1px;
+  background: rgba(255, 253, 246, .62);
+}
+
+/* One sheet at a time, lying on the same paper. The sheet you leave lifts off
+   the top of the stack; the sheet you go back to comes down onto it. Nothing
+   scrolls sideways, and nothing scrolls at all. */
+#pages { position: absolute; inset: 0; z-index: 2; }
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: clamp(8px, 1.4vh, 16px);
+  padding:
+    clamp(18px, 3.1vh, 34px)
+    clamp(26px, 5.2vw, 78px)
+    104px;
+  color: var(--ink);
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 26px, 0) scale(.995);
+  transition:
+    transform .6s cubic-bezier(.2, .82, .22, 1),
+    opacity 0s linear .6s;
+}
+
+.sheet.is-on {
+  z-index: 3;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  transition:
+    transform .7s cubic-bezier(.2, .82, .22, 1),
+    opacity .18s linear;
+}
+
+.sheet.is-up {
+  z-index: 4;
+  /* taken off the stack by its right edge: it tilts and is drawn clear, so the
+     sheet beneath is uncovered from the bottom up */
+  transform: translate3d(6%, -78%, 0) rotate(-2.4deg);
+  transition:
+    transform .72s cubic-bezier(.34, .04, .34, 1),
+    opacity .2s linear .56s;
+}
+
+/* what makes a sheet in flight a sheet and not a slide: it is opaque, so it
+   hides what it was lying on until it has actually been moved off */
+.sheet .back {
+  position: absolute;
+  inset: -13px;
+  z-index: -1;
+  opacity: 0;
+  border-radius: 1px;
+  transition: opacity 0s linear;
+  background: linear-gradient(176deg, #FDF7E9 0%, #F6EBD6 36%, #EFE1C4 70%, #E5D2AF 100%);
+  box-shadow:
+    0 1px 1px rgba(30, 16, 7, .24),
+    0 10px 22px rgba(26, 14, 6, .30),
+    0 26px 44px rgba(20, 10, 4, .24);
+}
+.sheet.is-up .back,
+.sheet.landing .back { opacity: 1; }
+
+/* letterhead */
+.lh {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: clamp(8.2px, .94vh, 10px);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: #7A6547;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: .9vh;
+}
+.lh .mark { width: 19px; height: 19px; flex: none; transform: translateY(2px); }
+.lh .name { letter-spacing: .26em; color: var(--ink-soft); }
+.lh .spacer { flex: 1; }
+.lh .folio { color: var(--ink-soft); }
+
+.body { display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+.body.top { justify-content: flex-start; }
+
+h1 {
+  font-size: clamp(26px, 5.1vh, 52px);
+  line-height: 1.05;
+  letter-spacing: -.016em;
+  font-weight: 500;
+  margin: 0 0 clamp(10px, 1.8vh, 22px);
+  color: #1A130C;
+}
+h1 em { font-style: italic; letter-spacing: -.01em; }
+h2 {
+  font-size: clamp(25px, 4vh, 40px);
+  line-height: 1.12;
+  font-weight: 500;
+  margin: 0 0 .55em;
+  color: #1A130C;
+}
+p {
+  margin: 0 0 .85em;
+  font-size: clamp(14px, 1.95vh, 19px);
+  line-height: 1.64;
+  color: #2B2116;
+  max-width: 62ch;
+}
+p:last-child { margin-bottom: 0; }
+.lede { font-size: clamp(14.5px, 2.05vh, 20px); line-height: 1.58; }
+.small { font-size: clamp(11.5px, 1.45vh, 14px); color: var(--ink-soft); line-height: 1.62; }
+.mono { font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+
+.dropcap::first-letter {
+  float: left;
+  font-size: 3.3em;
+  line-height: .82;
+  padding: .07em .1em .02em 0;
+  color: #1A130C;
+  font-weight: 500;
+}
+
+.p1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(168px, 0.44fr);
+  gap: clamp(26px, 4.4vw, 72px);
+  align-items: center;
+}
+.p1-main { min-width: 0; }
+.p1-idx {
+  align-self: center;
+  border-left: 1px solid var(--rule);
+  padding-left: clamp(16px, 2vw, 28px);
+  display: flex;
+  flex-direction: column;
+}
+.idx-head {
+  font-family: var(--mono);
+  font-size: 8.4px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-bottom: .9em;
+}
+.idx-row {
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0 .7em;
+  padding: .78em 0 .7em;
+  border-top: 1px solid rgba(58, 42, 26, .16);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: padding-left .35s var(--ease-out), color .35s ease;
+}
+.idx-row:last-child { border-bottom: 1px solid rgba(58, 42, 26, .16); }
+.idx-row .n {
+  font-family: var(--mono);
+  font-size: 8.6px;
+  letter-spacing: .16em;
+  color: var(--ink-faint);
+  transition: color .35s ease;
+}
+.idx-row .t { font-size: clamp(12px, 1.5vh, 14.4px); color: #241A10; line-height: 1.3; }
+.idx-row .d {
+  grid-column: 2;
+  font-family: var(--mono);
+  font-size: 8.2px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  line-height: 1.6;
+}
+.idx-row:hover { padding-left: .5em; }
+.idx-row:hover .n { color: var(--wax); }
+
+.margin-note {
+  position: absolute;
+  right: clamp(8px, 1.4vw, 22px);
+  top: 48%;
+  transform: rotate(90deg) translateX(-50%);
+  transform-origin: 100% 50%;
+  font-family: var(--mono);
+  font-size: 8.2px;
+  letter-spacing: .34em;
+  text-transform: uppercase;
+  color: rgba(87, 70, 47, .5);
+  white-space: nowrap;
+}
+
+/* install band */
+.band {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: clamp(12px, 2.2vh, 26px);
+  border-top: 1px solid rgba(58, 42, 26, .3);
+  border-bottom: 1px solid rgba(58, 42, 26, .3);
+  padding: .95em 0;
+}
+.band code {
+  font-family: var(--mono);
+  font-size: clamp(11.5px, 1.5vh, 14.5px);
+  letter-spacing: .02em;
+  color: #2A2016;
+}
+.band .prompt { color: var(--wax); user-select: none; }
+.band .tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 8.6px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+/* footer strip */
+.foot {
+  display: flex;
+  align-items: baseline;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--rule);
+  padding-top: .9vh;
+  font-family: var(--mono);
+  font-size: clamp(7.6px, .92vh, 9.6px);
+  letter-spacing: .19em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.foot .dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(90, 72, 48, .45); }
+.foot .folio { margin-left: auto; letter-spacing: .28em; color: var(--ink-soft); }
+
+/* the register */
+.reg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(7, auto);
+  gap: 0 clamp(24px, 4.4vw, 64px);
+}
+.reg-row {
+  display: grid;
+  grid-template-columns: 5.9em minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: .9em;
+  padding: .66em 0;
+  border-bottom: 1px solid rgba(58, 42, 26, .14);
+  font-size: clamp(12px, 1.62vh, 14.8px);
+}
+.reg-row .pkg  { font-family: var(--mono); letter-spacing: .02em; color: #241A10; }
+.reg-row .what { color: #4C3D2C; line-height: 1.4; font-size: .95em; }
+.reg-row .spec { font-family: var(--mono); font-size: .84em; letter-spacing: .06em; color: var(--ink-faint); text-align: right; white-space: nowrap; }
+.reg-row.lead .pkg { color: var(--wax); }
+
+/* evidence: four blocks, two by two */
+.ev2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(14px, 2.8vh, 34px) clamp(24px, 4vw, 62px);
+  align-content: start;
+}
+.evc {
+  display: flex;
+  flex-direction: column;
+  gap: .6em;
+  border-top: 1px solid rgba(58, 42, 26, .26);
+  padding-top: .8em;
+}
+.evc .ev-cmd { font-size: clamp(10.5px, 1.42vh, 13.6px); }
+.evc .ev-out { font-size: clamp(11.5px, 1.52vh, 14.6px); line-height: 1.6; color: #4A3B2A; }
+
+/* evidence */
+.ev { display: flex; flex-direction: column; gap: clamp(9px, 1.7vh, 19px); }
+.ev-row {
+  display: grid;
+  grid-template-columns: minmax(0, 15.5em) minmax(0, 1fr);
+  gap: clamp(12px, 2vw, 30px);
+  align-items: baseline;
+  padding-bottom: .7em;
+  border-bottom: 1px solid rgba(58, 42, 26, .14);
+}
+.ev-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.ev-cmd { font-family: var(--mono); font-size: clamp(10px, 1.24vh, 12.2px); color: #2A2016; }
+.ev-cmd b { font-weight: 400; color: var(--wax); }
+.ev-out { font-size: clamp(11.6px, 1.44vh, 14px); line-height: 1.55; color: #4A3B2A; }
+.ev-out code {
+  font-family: var(--mono); font-size: .9em;
+  background: rgba(90, 70, 44, .09); padding: .1em .3em; border-radius: 2px;
+}
+
+/* a tally in the foot of the page */
+.tally {
+  margin-top: auto;
+  padding-top: clamp(14px, 2.4vh, 26px);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid rgba(58, 42, 26, .18);
+}
+.tally > div {
+  display: flex;
+  flex-direction: column;
+  gap: .2em;
+  border-left: 1px solid rgba(58, 42, 26, .16);
+  padding-left: clamp(10px, 1.4vw, 18px);
+}
+.tally > div:first-child { border-left: 0; padding-left: 0; }
+.tally b {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(22px, 3.4vh, 34px);
+  line-height: 1;
+  color: #241A10;
+  letter-spacing: -.02em;
+}
+.tally span {
+  font-family: var(--mono);
+  font-size: 8.4px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.stamp {
+  position: absolute;
+  right: clamp(36px, 6.6vw, 118px);
+  top: clamp(58px, 10vh, 104px);
+  width: clamp(96px, 15vh, 152px);
+  transform: rotate(-11deg);
+  opacity: .62;
+  color: var(--wax);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* refusals */
+.refuse { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 6.2vh, 66px) clamp(20px, 4vw, 54px); }
+.refuse > div { border-top: 1px solid rgba(58, 42, 26, .22); padding-top: .8em; }
+.refuse h3 { font-size: clamp(14px, 1.9vh, 17.5px); font-weight: 500; margin: 0 0 .32em; color: #201810; }
+.refuse p { font-size: clamp(11.8px, 1.48vh, 14.2px); line-height: 1.58; margin: 0; color: #4A3B2A; max-width: none; }
+
+.sign { display: flex; align-items: flex-end; gap: 16px; margin-top: clamp(26px, 5.8vh, 62px); }
+.sign .flourish { width: 118px; height: 40px; flex: none; color: var(--wax); opacity: .8; }
+.sign .who {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--ink-faint); line-height: 1.9;
+}
+.sign .who b {
+  display: block; font-family: var(--serif); font-weight: 500;
+  font-size: clamp(13px, 1.7vh, 16px); letter-spacing: .01em;
+  text-transform: none; color: #241A10;
+}
+
+.ghost {
+  position: absolute;
+  right: clamp(16px, 3vw, 48px);
+  bottom: clamp(44px, 6vh, 64px);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(90px, 20vh, 210px);
+  line-height: .78;
+  color: rgba(90, 68, 40, .085);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ------------------------------------------------------------------- folio */
+/* Not a scrollbar and not a slider: the edges of the sheets, seen side-on.
+   The sheet you are reading is the one in wax. */
+#folio {
+  position: absolute;
+  right: clamp(26px, 5.2vw, 78px);
+  bottom: 102px;
+  height: 22px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 15px;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity .9s .5s ease, transform .9s .5s var(--ease-out);
+}
+.open #folio { opacity: 1; transform: none; }
+
+.folio-num {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  color: #7A6547;
+}
+.folio-num b { font-weight: 400; color: #241A10; letter-spacing: .06em; }
+.folio-num i { font-style: normal; opacity: .6; }
+
+.sheet-edges { display: flex; align-items: center; gap: 6px; }
+.sheet-edges button {
+  position: relative;
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  appearance: none; -webkit-appearance: none;
+  background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer;
+}
+.sheet-edges button i {
+  display: block;
+  width: 11px;
+  height: 1px;
+  background: rgba(74, 57, 36, .46);
+  transition: width .5s var(--ease-out), height .4s ease, background .4s ease;
+}
+.sheet-edges button:hover i { width: 17px; background: rgba(74, 57, 36, .7); }
+.sheet-edges button:focus-visible { outline: 1px dotted rgba(74, 57, 36, .55); outline-offset: 1px; }
+.sheet-edges button[aria-selected="true"] i {
+  width: 23px;
+  height: 2px;
+  background: linear-gradient(90deg, #7E241C, #A8453A);
+  box-shadow: 0 0 1px rgba(120, 34, 26, .55);
+}
+
+/* ------------------------------------------------------------------- hint */
+#hint, #hint2 {
+  position: absolute;
+  left: 50%;
+  bottom: 6.6vh;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 9.2px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: rgba(233, 216, 190, .55);
+  transition: opacity .7s ease, transform .7s ease;
+  pointer-events: none;
+}
+#hint::before, #hint::after, #hint2::before, #hint2::after {
+  content: "";
+  width: clamp(18px, 4vw, 54px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(233, 216, 190, .38));
+}
+#hint::after, #hint2::after { background: linear-gradient(270deg, transparent, rgba(233, 216, 190, .38)); }
+.opening #hint { opacity: 0; transform: translate(-50%, 8px); }
+
+#hint2 { opacity: 0; }
+.open #hint2 { animation: hint-pass 7s 1.5s forwards; }
+@keyframes hint-pass {
+  0%   { opacity: 0; transform: translate(-50%, 9px); }
+  9%   { opacity: 1; transform: translate(-50%, 0); }
+  80%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -7px); }
+}
+
+/* the envelope's corners, still holding the letter */
+#pocket {
+  position: absolute;
+  left: 50%;
+  top: 45.5%;
+  width: var(--env-w);
+  aspect-ratio: 1.618 / 1;
+  transform: translate(-50%, -50%) rotate(-.35deg);
+  z-index: 30;
+  pointer-events: none;
+  overflow: hidden;            /* the folds must not spill past the envelope */
+  opacity: 0;
+  transition: opacity .6s .1s ease;
+}
+.opening #pocket { opacity: 1; }
+.pocket-art { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* A plain control, deliberately not part of the envelope or the letter: the
+   reader's own index, for jumping straight to a sheet. It is chrome, and it
+   should look like chrome — a small dark plate in the corner of the page. */
+#jump {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px 4px 8px;
+  border: 1px solid rgba(240, 222, 194, .14);
+  border-radius: 3px;
+  background: rgba(30, 21, 15, .64);
+  box-shadow: 0 1px 0 rgba(255, 236, 208, .05) inset, 0 8px 22px rgba(0, 0, 0, .38);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(10px) saturate(1.1);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.5;
+  letter-spacing: .12em;
+  color: rgba(238, 221, 195, .66);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .5s .7s ease, border-color .3s ease;
+}
+.open #jump { opacity: 1; pointer-events: auto; }
+#jump:hover { border-color: rgba(240, 222, 194, .32); }
+#jump .k { opacity: .5; }
+
+.sel { position: relative; display: inline-flex; align-items: center; }
+.sel select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0 13px 0 0;
+  font: inherit;
+  letter-spacing: .06em;
+  color: rgba(247, 231, 205, .9);
+  cursor: pointer;
+}
+.sel select:focus-visible { outline: 1px dotted rgba(240, 222, 194, .55); outline-offset: 3px; }
+.sel select option { background: #16110d; color: #EADCC2; }
+.sel svg { position: absolute; right: 0; width: 7px; height: 5px; opacity: .5; pointer-events: none; }
+
+#grain {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  filter: url(#f-film);
+  mix-blend-mode: overlay;
+  opacity: .22;
+}
+
+/* --------------------------------------------------------------- reduced  */
+@media (prefers-reduced-motion: reduce) {
+  .opening #letter { animation: none; transform: translate3d(0, 0, 0) rotate(-.28deg); }
+  .flap3d, #sealwax, #envelope, .sheet, .sheet .back { transition-duration: .001s; }
+  .open #hint2 { animation: none; opacity: .85; }
+  #jump { transition-duration: .001s; }
+  .opening .flap3d { animation-duration: .001s; }
+  .halo { animation: none; }
+}
+
+/* ----------------------------------------------------------------- narrow */
+@media (max-width: 820px) {
+  #stage { --env-w: min(94vw, 1200px, 150vh); }
+  .foot { font-size: 8.2px; letter-spacing: .14em; gap: 6px 10px; }
+  .foot .dot { display: none; }
+  .refuse { gap: 16px 14px; }
+  #letterclip { clip-path: none; }
+  #letter {
+    left: 0; right: 0; top: 0; bottom: 0;
+    width: auto; height: auto; margin: 0;
+    inset: 4.6vh 4vw 9.5vh;
+  }
+  #pocket { width: 126vw; top: auto; bottom: -11vh; }
+  #seal, #sealwax, #lip { width: 28%; }
+  .sheet { padding: 18px clamp(20px, 6vw, 34px) 76px; }
+  .p1 { grid-template-columns: minmax(0, 1fr); }
+  .p1-idx { display: none; }
+  .reg { grid-template-columns: 1fr; }
+  .reg-row:nth-child(n+9) { display: none; }
+  .ev-row { grid-template-columns: 1fr; gap: .28em; }
+  .refuse { grid-template-columns: 1fr; gap: 9px; }
+  .refuse > div:nth-child(n+4) { display: none; }
+  .stamp { width: 62px; right: 14px; top: 50px; }
+  .margin-note, .ghost { display: none; }
+  #hint, #hint2 { font-size: 8px; letter-spacing: .2em; bottom: 11vh; }
+  /* on a phone the footer uses the whole width, so the edges drop below it */
+  #folio { right: 16px; bottom: 13px; }
+  #jump { top: 8px; right: 8px; font-size: 9px; letter-spacing: .08em; }
+  #jump .k { display: none; }
+  .folio-num { display: none; }
+  .sheet-edges { gap: 1px; }
+  .sheet-edges button { width: 24px; }
+}
+
+@media (max-height: 640px) {
+  h1 { font-size: clamp(22px, 4.4vh, 34px); }
+  p { font-size: clamp(11.5px, 1.6vh, 14px); line-height: 1.52; }
+  .ev { gap: 8px; }
+  .sign { margin-top: 8px; }
+  .sign .flourish { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- =============================================================== filters -->
+<svg class="defs" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- fine tooth of the paper -->
+    <filter id="f-fibre" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.88" numOctaves="4" seed="31" result="t"/>
+      <feColorMatrix in="t" type="matrix" values="
+        0 0 0 0 0.22
+        0 0 0 0 0.15
+        0 0 0 0 0.08
+        0.62 0.30 0.08 0 -0.30"/>
+    </filter>
+
+    <!-- the same tooth, lit: this is what makes it read as a surface -->
+    <filter id="f-relief" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9 1.1" numOctaves="3" seed="23" result="b"/>
+      <feDiffuseLighting in="b" surfaceScale="2" diffuseConstant="1.06" lighting-color="#FFFFFF" result="l">
+        <feDistantLight azimuth="228" elevation="52"/>
+      </feDiffuseLighting>
+      <feComposite in="l" in2="SourceAlpha" operator="in"/>
+    </filter>
+
+    <!-- uneven pulp: only a breath of it, or it fogs the sheet -->
+    <filter id="f-cloud" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="3" seed="6" result="t"/>
+      <feColorMatrix in="t" type="matrix" values="
+        0 0 0 0 0.52
+        0 0 0 0 0.40
+        0 0 0 0 0.22
+        0.9 0.3 0.1 0 -0.62"/>
+    </filter>
+
+    <!-- stray fibre: mostly nothing, a few short strands -->
+    <filter id="f-fleck" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.5 0.035" numOctaves="2" seed="41" result="t"/>
+      <feColorMatrix in="t" type="matrix" values="
+        0 0 0 0 0.36
+        0 0 0 0 0.27
+        0 0 0 0 0.15
+        0.9 0.3 0.1 0 -0.93"/>
+    </filter>
+
+    <!-- the chain lines of laid paper -->
+    <filter id="f-laid" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.62" numOctaves="3" seed="3" result="t"/>
+      <feColorMatrix in="t" type="matrix" values="
+        0 0 0 0 0.40
+        0 0 0 0 0.31
+        0 0 0 0 0.17
+        0.8 0.2 0.1 0 -0.66"/>
+    </filter>
+
+    <!-- the grain of the desk: noise stretched into long horizontal streaks and
+         squashed into a grey around 0.5, so an overlay leaves the board's own
+         colour alone and only modulates it -->
+    <filter id="f-wood" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0034 0.17" numOctaves="4" seed="17" result="t"/>
+      <feColorMatrix in="t" type="matrix" values="
+        0.33 0.34 0.33 0 0
+        0.33 0.34 0.33 0 0
+        0.33 0.34 0.33 0 0
+        0    0    0    0 1" result="g"/>
+      <feComponentTransfer in="g">
+        <feFuncR type="linear" slope=".72" intercept=".14"/>
+        <feFuncG type="linear" slope=".72" intercept=".14"/>
+        <feFuncB type="linear" slope=".72" intercept=".14"/>
+      </feComponentTransfer>
+    </filter>
+
+    <!-- torn edge + cast shadow; applied to a clipped group so texture follows the edge -->
+    <filter id="f-deckle" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="4" seed="9" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feDropShadow in="d" dx="0" dy="14" stdDeviation="24" flood-color="#0A0503" flood-opacity="0.6"/>
+    </filter>
+
+    <filter id="f-blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="13"/>
+    </filter>
+
+    <!-- sealing wax: a wobbled silhouette lit as a dome, plus a fine sheen -->
+    <filter id="f-wax" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="12" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feGaussianBlur in="d" stdDeviation="9" result="dome"/>
+      <feSpecularLighting in="dome" surfaceScale="9" specularConstant=".46" specularExponent="34" lighting-color="#FFE6D6" result="s">
+        <feDistantLight azimuth="228" elevation="54"/>
+      </feSpecularLighting>
+      <feComposite in="s" in2="d" operator="in" result="sc"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.2" numOctaves="3" seed="5" result="bmp"/>
+      <feGaussianBlur in="bmp" stdDeviation="1.4" result="bmp2"/>
+      <feSpecularLighting in="bmp2" surfaceScale="1.2" specularConstant=".10" specularExponent="48" lighting-color="#FFF1E8" result="s2">
+        <feDistantLight azimuth="228" elevation="62"/>
+      </feSpecularLighting>
+      <feComposite in="s2" in2="d" operator="in" result="s2c"/>
+      <feBlend in="d" in2="sc" mode="screen" result="b1"/>
+      <feBlend in="b1" in2="s2c" mode="screen" result="b2"/>
+      <feComposite in="b2" in2="d" operator="in"/>
+    </filter>
+
+    <filter id="f-waxshadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dx="3" dy="9" result="o"/>
+      <feFlood flood-color="#180604" flood-opacity=".72"/>
+      <feComposite in2="o" operator="in"/>
+    </filter>
+
+    <!-- film grain, screens over the whole frame -->
+    <filter id="f-film" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="3" seed="2" result="t"/>
+      <feColorMatrix in="t" type="saturate" values="0"/>
+    </filter>
+
+    <linearGradient id="g-paper" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0"   stop-color="#FBF4E4"/>
+      <stop offset=".4"  stop-color="#F3E7CF"/>
+      <stop offset=".76" stop-color="#EFE0C2"/>
+      <stop offset="1"   stop-color="#E7D5B2"/>
+    </linearGradient>
+
+    <linearGradient id="g-env" x1="0" y1="0" x2=".28" y2="1">
+      <stop offset="0"   stop-color="#FBF3E2"/>
+      <stop offset=".38" stop-color="#F2E6CD"/>
+      <stop offset=".76" stop-color="#E6D6B7"/>
+      <stop offset="1"   stop-color="#D5C29E"/>
+    </linearGradient>
+
+    <radialGradient id="g-env-sheen" cx="30%" cy="6%" r="86%">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity=".5"/>
+      <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".07"/>
+      <stop offset="1"   stop-color="#7A5C36" stop-opacity=".15"/>
+    </radialGradient>
+
+    <radialGradient id="g-wax" cx="32%" cy="24%" r="90%">
+      <stop offset="0"   stop-color="#9E3B32"/>
+      <stop offset=".36" stop-color="#8C2C24"/>
+      <stop offset=".7"  stop-color="#722019"/>
+      <stop offset=".92" stop-color="#53130F"/>
+      <stop offset="1"   stop-color="#430E0A"/>
+    </radialGradient>
+
+    <radialGradient id="g-wax-face" cx="36%" cy="30%" r="88%">
+      <stop offset="0"   stop-color="#8E2F26"/>
+      <stop offset=".55" stop-color="#86291F"/>
+      <stop offset="1"   stop-color="#631A14"/>
+    </radialGradient>
+
+    <linearGradient id="g-rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#FFDCC8" stop-opacity=".55"/>
+      <stop offset=".35" stop-color="#FFD2BC" stop-opacity=".10"/>
+      <stop offset=".62" stop-color="#2A0604" stop-opacity=".12"/>
+      <stop offset="1"   stop-color="#240504" stop-opacity=".55"/>
+    </linearGradient>
+
+    <linearGradient id="g-deboss" x1="0" y1="0" x2=".85" y2="1">
+      <stop offset="0"   stop-color="#320A07"/>
+      <stop offset=".5"  stop-color="#4B110C"/>
+      <stop offset="1"   stop-color="#7E2419"/>
+    </linearGradient>
+
+    <mask id="m-crescent">
+      <rect x="-90" y="-90" width="180" height="180" fill="#000"/>
+      <circle cx="-1" cy="1" r="24.5" fill="#fff"/>
+      <circle cx="11" cy="-6.5" r="21.5" fill="#000"/>
+    </mask>
+
+    <path id="p-legend" d="M-32.4 -12.8 A35 35 0 0 1 32.4 -12.8" fill="none"/>
+
+    <!-- the wax fractures on this line: what is above it leaves with the flap,
+         what is below stays on the envelope as a lip -->
+    <mask id="m-wax-top" maskUnits="userSpaceOnUse" x="-90" y="-90" width="180" height="180">
+      <rect x="-90" y="-90" width="180" height="180" fill="#000"/>
+      <path fill="#fff" d="M-90 -90 L90 -90 L90 48 L45 48 L38 42 L33 46 L26 40 L13 43 L7 53 L1 41 L-8 46 L-14 39 L-27 42 L-34 49 L-40 44 L-45 47 L-90 47 Z"/>
+    </mask>
+    <mask id="m-wax-bot" maskUnits="userSpaceOnUse" x="-90" y="-90" width="180" height="180">
+      <rect x="-90" y="-90" width="180" height="180" fill="#000"/>
+      <path fill="#fff" d="M-90 44.2 L-45 44.2 L-40 41.2 L-34 46.2 L-27 39.2 L-14 36.2 L-8 43.2 L1 38.2 L7 50.2 L13 40.2 L26 37.2 L33 43.2 L38 39.2 L45 45.2 L90 45.2 L90 90 L-90 90 Z"/>
+    </mask>
+
+    <clipPath id="cp-box" clipPathUnits="objectBoundingBox"><rect width="1" height="1"/></clipPath>
+    <filter id="f-stain" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="4" seed="9" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="30" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <radialGradient id="g-stain" cx="50%" cy="50%" r="50%">
+      <stop offset="0"   stop-color="#5E2416" stop-opacity=".10"/>
+      <stop offset=".50" stop-color="#6B2A19" stop-opacity=".22"/>
+      <stop offset=".78" stop-color="#4E1B10" stop-opacity=".34"/>
+      <stop offset=".92" stop-color="#3F1409" stop-opacity=".14"/>
+      <stop offset="1"   stop-color="#3F1409" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g-stainring" cx="50%" cy="50%" r="50%">
+      <stop offset="0"   stop-color="#4A170C" stop-opacity="0"/>
+      <stop offset=".55" stop-color="#4A170C" stop-opacity=".18"/>
+      <stop offset="1"   stop-color="#4A170C" stop-opacity=".42"/>
+    </radialGradient>
+  </defs>
+</svg>
+
+<!-- ================================================================= stage -->
+<div id="stage">
+
+  <div id="desk">
+    <div class="lamplight"></div>
+    <div class="tex-layer wood"></div>
+    <div class="tex-layer cloud"></div>
+    <div class="tex-layer fibre"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <!-- what the envelope is sitting on: without it the envelope floats -->
+  <div id="envshadow" aria-hidden="true"></div>
+
+  <!-- -------------------------------------------------------- the envelope -->
+  <div id="envelope" aria-label="A sealed envelope">
+    <svg class="envart" viewBox="0 0 1000 618" preserveAspectRatio="none" aria-hidden="true">
+      <g filter="url(#f-deckle)" clip-path="url(#cp-box)">
+        <rect x="0" y="0" width="100%" height="100%" fill="url(#g-env)"/>
+        <rect x="0" y="0" width="100%" height="100%" fill="url(#g-env-sheen)"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-relief)" opacity=".5" style="mix-blend-mode:soft-light"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-cloud)" opacity=".15" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-laid)" opacity=".28" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-fibre)" opacity=".44" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-fleck)" opacity=".8" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" fill="none" stroke="#6B4E27" stroke-opacity=".2" stroke-width="26" filter="url(#f-blur)" style="mix-blend-mode:multiply"/>
+      </g>
+      <!-- the two seams where the side flaps fold under the face -->
+      <g fill="none" stroke-linecap="round">
+        <path d="M0 0 L500 372" stroke="#FFFBF2" stroke-opacity=".34" stroke-width="1.3"/>
+        <path d="M0 0 L500 372" stroke="#6B4E27" stroke-opacity=".27" stroke-width="3"/>
+        <path d="M1000 0 L500 372" stroke="#FFFBF2" stroke-opacity=".34" stroke-width="1.3"/>
+        <path d="M1000 0 L500 372" stroke="#6B4E27" stroke-opacity=".27" stroke-width="3"/>
+      </g>
+      <path d="M2 616 L998 616" fill="none" stroke="#7A5D38" stroke-opacity=".2" stroke-width="2.4"/>
+    </svg>
+
+    <div id="sealmark" aria-hidden="true">
+      <svg viewBox="-100 -100 200 200">
+        <g filter="url(#f-stain)" style="mix-blend-mode:multiply">
+          <circle r="55" fill="url(#g-stain)"/>
+          <circle r="38" fill="none" stroke="url(#g-stainring)" stroke-width="7"/>
+        </g>
+        <g filter="url(#f-stain)" style="mix-blend-mode:multiply" opacity=".62">
+          <circle cx="-11" cy="13" r="34" fill="url(#g-stain)"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- the lip of wax that stays on the envelope when the flap comes away -->
+    <div id="lip" aria-hidden="true"></div>
+
+    <div class="flap3d">
+      <div class="flap-lift">
+        <div class="flap-face"><div class="flap-tex"></div></div>
+        <div class="flap-shade"></div>
+      </div>
+      <!-- the seal rides the flap -->
+      <span id="sealwax" data-wax aria-hidden="true"></span>
+    </div>
+
+    <button id="seal" aria-label="Break the seal and open the letter">
+      <span class="halo"></span>
+      <span class="crumbs">
+        <i style="--dx:-86px;--dy:58px;--dr:120deg"></i>
+        <i style="--dx:-46px;--dy:96px;--dr:-90deg"></i>
+        <i style="--dx:78px;--dy:52px;--dr:-140deg"></i>
+        <i style="--dx:40px;--dy:104px;--dr:70deg"></i>
+        <i style="--dx:-104px;--dy:12px;--dr:200deg"></i>
+        <i style="--dx:98px;--dy:18px;--dr:-60deg"></i>
+      </span>
+    </button>
+  </div>
+
+  <!-- ---------------------------------------------------------- the letter -->
+  <div id="letterclip">
+  <div id="letter">
+    <svg class="sheetpaper" aria-hidden="true">
+      <g filter="url(#f-deckle)" clip-path="url(#cp-box)">
+        <rect x="0" y="0" width="100%" height="100%" fill="url(#g-paper)"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-relief)" opacity=".55" style="mix-blend-mode:soft-light"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-cloud)" opacity=".22" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-laid)" opacity=".3" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-fibre)" opacity=".44" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" filter="url(#f-fleck)" opacity=".85" style="mix-blend-mode:multiply"/>
+        <rect x="0" y="0" width="100%" height="100%" fill="none" stroke="#6E5028" stroke-opacity=".22" stroke-width="30" filter="url(#f-blur)" style="mix-blend-mode:multiply"/>
+      </g>
+    </svg>
+    <div class="paperlight"></div>
+    <div class="crease a"></div>
+    <div class="crease b"></div>
+
+    <div id="pages">
+
+        <!-- ------------------------------------------------------- sheet i -->
+        <article class="sheet is-on" data-page="0">
+          <div class="back" aria-hidden="true"></div>
+          <header class="lh">
+            <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+              <circle cx="20" cy="20" r="19" fill="#8C2A21"/>
+              <circle cx="20" cy="20" r="15.4" fill="none" stroke="#F0DCC8" stroke-opacity=".45" stroke-width=".9"/>
+              <path d="M24.4 11.6 a9.4 9.4 0 1 1 .9 14.6 a7.2 7.2 0 0 0 -.9-14.6" fill="#EFDCC4"/>
+            </svg>
+            <span class="name">Mooncred</span>
+            <span class="spacer"></span>
+            <span>Apache-2.0</span>
+            <span class="folio">0.6.4</span>
+          </header>
+
+          <div class="body p1">
+            <div class="p1-main">
+              <h1>Credentials,<br><em>read</em> and written.</h1>
+              <p class="lede dropcap">Thirteen packages for the credentials a system must trust and the ones it must present — a certificate, a key, a request, a container, a revocation list, a token, a sealed envelope of JSON. They read what other tools write, and write what other tools read.</p>
+              <p class="small">Nothing here picks an algorithm, invents a random number, or opens a socket.</p>
+              <div class="band">
+                <code><span class="prompt">$</span> moon add moonbitstack/mooncred</code>
+                <span class="tag">13 packages · no runtime deps</span>
+              </div>
+            </div>
+            <aside class="p1-idx">
+              <span class="idx-head">in this letter</span>
+              <a class="idx-row" data-goto="1"><span class="n">i</span><span class="t">the shelf</span><span class="d">thirteen formats</span></a>
+              <a class="idx-row" data-goto="2"><span class="n">ii</span><span class="t">evidence</span><span class="d">what opens it</span></a>
+              <a class="idx-row" data-goto="3"><span class="n">iii</span><span class="t">refusals</span><span class="d">what it won't</span></a>
+            </aside>
+          </div>
+
+          <footer class="foot">
+            <span>13 packages</span><span class="dot"></span>
+            <span>137 tests</span><span class="dot"></span>
+            <span>wasm · wasm-gc · js · native</span>
+                      </footer>
+
+        </article>
+
+        <!-- ------------------------------------------------------ sheet ii -->
+        <article class="sheet" data-page="1">
+          <div class="back" aria-hidden="true"></div>
+          <header class="lh">
+            <span class="name">Mooncred</span>
+            <span class="spacer"></span>
+            <span>the register</span>
+            <span class="folio">ii</span>
+          </header>
+
+          <div class="body">
+            <h2>The shelf.</h2>
+            <p class="small" style="margin-bottom:1.1em;max-width:52ch">Each package names its specification and stops there. A format that arrives without one is not on the list.</p>
+            <div class="reg">
+              <div class="reg-row lead"><span class="pkg">x509</span><span class="what">certificates, chains, names, extensions</span><span class="spec">5280 · 6125</span></div>
+              <div class="reg-row lead"><span class="pkg">pkcs12</span><span class="what">a key and its chain in one file</span><span class="spec">7292</span></div>
+              <div class="reg-row"><span class="pkg">csr</span><span class="what">the request made before a certificate</span><span class="spec">2986</span></div>
+              <div class="reg-row"><span class="pkg">jwt</span><span class="what">signed claims, thirteen algorithms</span><span class="spec">7515 · 7519</span></div>
+              <div class="reg-row"><span class="pkg">jwk</span><span class="what">keys as JSON, and sets of them</span><span class="spec">7517</span></div>
+              <div class="reg-row"><span class="pkg">jwe</span><span class="what">claims nobody else may read</span><span class="spec">7516</span></div>
+              <div class="reg-row"><span class="pkg">cose</span><span class="what">sign, mac and encrypt, over CBOR</span><span class="spec">9052</span></div>
+              <div class="reg-row"><span class="pkg">cbor</span><span class="what">the encoding COSE is written in</span><span class="spec">8949</span></div>
+              <div class="reg-row"><span class="pkg">pbe</span><span class="what">keys kept behind a passphrase</span><span class="spec">8018 · 5958</span></div>
+              <div class="reg-row"><span class="pkg">revoke</span><span class="what">lists and answers, read and judged</span><span class="spec">5280 §5 · 6960</span></div>
+              <div class="reg-row"><span class="pkg">policy</span><span class="what">whether a chain suits a purpose</span><span class="spec">5280 §6.1</span></div>
+              <div class="reg-row"><span class="pkg">token</span><span class="what">a payload, a stamp, an HMAC</span><span class="spec">—</span></div>
+              <div class="reg-row"><span class="pkg">roots</span><span class="what">the Mozilla store as anchors</span><span class="spec">—</span></div>
+            </div>
+          </div>
+
+          <footer class="foot">
+            <span>thirteen packages</span><span class="dot"></span>
+            <span>each its own specification</span>
+                      </footer>
+        </article>
+
+        <!-- ----------------------------------------------------- sheet iii -->
+        <article class="sheet" data-page="2">
+          <div class="back" aria-hidden="true"></div>
+          <header class="lh">
+            <span class="name">Mooncred</span>
+            <span class="spacer"></span>
+            <span>evidence</span>
+            <span class="folio">iii</span>
+          </header>
+
+          <div class="body">
+            <h2>Verified, not claimed.</h2>
+            <p class="small" style="margin-bottom:1.4em;max-width:54ch">Every fixture in the suite was written by openssl, so each reader is measured against a writer it did not write.</p>
+            <div class="ev2">
+              <div class="evc">
+                <span class="ev-cmd">openssl req <b>-verify</b></span>
+                <span class="ev-out">A request written here prints <code>self-signature verify OK</code>.</span>
+              </div>
+              <div class="evc">
+                <span class="ev-cmd">openssl pkcs12 <b>-info</b></span>
+                <span class="ev-out">Our container opens; a wrong passphrase gives <code>Mac verify error</code> — the negative case, proved too.</span>
+              </div>
+              <div class="evc">
+                <span class="ev-cmd">openssl pkeyutl <b>-decrypt</b></span>
+                <span class="ev-out">Both directions: a key wrapped here by RSA-OAEP-256 opens in openssl, and the reverse.</span>
+              </div>
+              <div class="evc">
+                <span class="ev-cmd">moon test <b>--target all</b></span>
+                <span class="ev-out">137 tests pass on wasm-gc, js, native and wasm.</span>
+              </div>
+            </div>
+            <p class="small" style="margin:1.6em 0 0;max-width:62ch">The revocation fixtures come from the same script: good, revoked, unknown and expired are each a case the reader has to get right, and a stale list is a case it has to refuse.</p>
+            <div class="tally">
+              <div><b>13</b><span>packages</span></div>
+              <div><b>137</b><span>tests</span></div>
+              <div><b>4</b><span>backends</span></div>
+              <div><b>0</b><span>sockets</span></div>
+            </div>
+          </div>
+
+          <footer class="foot">
+            <span>every fixture made by openssl</span><span class="dot"></span>
+            <span>scripts/gen_credentials.py</span>
+                      </footer>
+
+          <svg class="stamp" viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="55" fill="none" stroke="currentColor" stroke-width="2.4" opacity=".75"/>
+            <circle cx="60" cy="60" r="44" fill="none" stroke="currentColor" stroke-width="1" opacity=".55"/>
+            <path id="stampArc" d="M24 44 A44 44 0 0 1 96 44" fill="none"/>
+            <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5"
+                  letter-spacing="2.6" fill="currentColor" text-anchor="middle">
+              <textPath href="#stampArc" startOffset="50%">VERIFIED</textPath>
+            </text>
+            <text x="60" y="72" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+                  font-size="8.4" letter-spacing="1.5" fill="currentColor" opacity=".85">OPENSSL</text>
+            <path d="M38 78 L82 78" stroke="currentColor" stroke-width="1" opacity=".6"/>
+            <text x="60" y="92" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+                  font-size="7.4" letter-spacing="1.6" fill="currentColor" opacity=".7">NOT CLAIMED</text>
+          </svg>
+        </article>
+
+        <!-- ------------------------------------------------------ sheet iv -->
+        <article class="sheet" data-page="3">
+          <div class="back" aria-hidden="true"></div>
+          <header class="lh">
+            <span class="name">Mooncred</span>
+            <span class="spacer"></span>
+            <span>what it will not do</span>
+            <span class="folio">iv</span>
+          </header>
+
+          <div class="body">
+            <h2>Four refusals.</h2>
+            <div class="refuse">
+              <div>
+                <h3>It chooses no algorithm.</h3>
+                <p>The verifier is told which one to expect. A token that names its own is refused, because that is how a signature gets swapped.</p>
+              </div>
+              <div>
+                <h3>It generates no entropy.</h3>
+                <p>Salt, IV and content key are arguments. A test can then assert on a byte string instead of hoping.</p>
+              </div>
+              <div>
+                <h3>It opens no socket.</h3>
+                <p><span class="mono" style="letter-spacing:.06em">revoke</span> reads a list and judges an answer. Fetching either is the caller's business.</p>
+              </div>
+              <div>
+                <h3>It implements no primitive.</h3>
+                <p>RSA, ECDSA, Ed25519 and AES come from mooncrypt. ML-DSA certificates wait for it, rather than being faked here.</p>
+              </div>
+            </div>
+            <div class="sign">
+              <svg class="flourish" viewBox="0 0 160 54" aria-hidden="true">
+                <path d="M8 40 C30 40 26 18 44 18 C62 18 58 40 76 40 C92 40 88 12 108 12 C126 12 120 34 140 30"
+                      fill="none" stroke="currentColor" stroke-opacity=".65" stroke-width="1.4" stroke-linecap="round"/>
+                <circle cx="146" cy="27" r="6.5" fill="currentColor" opacity=".75"/>
+              </svg>
+              <span class="who"><b>Sealed and kept, 0.6.4.</b>github.com/moonbitstack/mooncred</span>
+            </div>
+          </div>
+
+          <footer class="foot">
+            <span>apache-2.0</span><span class="dot"></span>
+            <span>moon add moonbitstack/mooncred</span>
+                      </footer>
+        </article>
+
+    </div>
+
+    <!-- the sheet edges, seen side-on: not a scrollbar -->
+    <nav id="folio" aria-label="Sheets">
+      <span class="folio-num"><b id="fi">i</b><i>/ iv</i></span>
+      <div class="sheet-edges" role="tablist" aria-label="Letter sheets">
+        <button role="tab" aria-selected="true"  aria-label="the opening" title="i · the opening"><i></i></button>
+        <button role="tab" aria-selected="false" aria-label="the shelf"   title="ii · the shelf"><i></i></button>
+        <button role="tab" aria-selected="false" aria-label="evidence"    title="iii · evidence"><i></i></button>
+        <button role="tab" aria-selected="false" aria-label="refusals"    title="iv · refusals"><i></i></button>
+      </div>
+    </nav>
+  </div>
+  </div>
+
+  <!-- ------------------------------------- the envelope, still holding it -->
+  <!-- Only the front of the envelope is left: a shallow pocket whose fold runs
+       over the foot of the sheet. Nothing of the envelope's back is visible. -->
+  <div id="pocket" aria-hidden="true">
+    <svg class="pocket-art" viewBox="0 0 1000 618" preserveAspectRatio="none">
+      <defs>
+        <clipPath id="cp-pocket">
+          <path d="M-40 700 L-40 480 Q170 584 500 574 Q830 584 1040 480 L1040 700 Z"/>
+        </clipPath>
+        <linearGradient id="g-pock" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stop-color="#2A1A0C" stop-opacity=".32"/>
+          <stop offset=".40" stop-color="#2A1A0C" stop-opacity=".10"/>
+          <stop offset="1"   stop-color="#2A1A0C" stop-opacity=".26"/>
+        </linearGradient>
+        <filter id="f-pockshadow" x="-25%" y="-250%" width="150%" height="500%">
+          <feGaussianBlur stdDeviation="7"/>
+        </filter>
+      </defs>
+
+      <!-- the envelope is in front of the letter here, so it casts onto it -->
+      <path d="M-40 480 Q170 584 500 574 Q830 584 1040 480" fill="none"
+            stroke="#190D06" stroke-opacity=".36" stroke-width="11"
+            filter="url(#f-pockshadow)" transform="translate(0 -4)"/>
+
+      <g clip-path="url(#cp-pocket)">
+        <rect x="-40" y="440" width="1080" height="270" fill="url(#g-env)"/>
+        <rect x="-40" y="440" width="1080" height="270" filter="url(#f-relief)" opacity=".5" style="mix-blend-mode:soft-light"/>
+        <rect x="-40" y="440" width="1080" height="270" filter="url(#f-cloud)" opacity=".14" style="mix-blend-mode:multiply"/>
+        <rect x="-40" y="440" width="1080" height="270" filter="url(#f-fibre)" opacity=".44" style="mix-blend-mode:multiply"/>
+        <rect x="-40" y="440" width="1080" height="270" fill="url(#g-pock)"/>
+
+        <!-- the creases of the two side flaps, folding under at the edges -->
+        <path d="M13 700 L13 470" fill="none" stroke="#FFFBF2" stroke-opacity=".3" stroke-width="1.2"/>
+        <path d="M10 700 L10 470" fill="none" stroke="#6B4E27" stroke-opacity=".16" stroke-width="3"/>
+        <path d="M987 700 L987 470" fill="none" stroke="#FFFBF2" stroke-opacity=".3" stroke-width="1.2"/>
+        <path d="M990 700 L990 470" fill="none" stroke="#6B4E27" stroke-opacity=".16" stroke-width="3"/>
+
+        <!-- the cut edge: a lit lip, then the crease itself -->
+        <path d="M-40 480 Q170 584 500 574 Q830 584 1040 480" fill="none" stroke="#FFFBF2" stroke-opacity=".38" stroke-width="1.3"/>
+        <path d="M-40 483 Q170 588 500 578 Q830 588 1040 483" fill="none" stroke="#6B4E27" stroke-opacity=".2" stroke-width="3"/>
+      </g>
+    </svg>
+  </div>
+
+  <div id="hint">break the seal</div>
+  <div id="hint2" aria-hidden="true">scroll · or drag the sheet</div>
+
+  <!-- the reader's index: a plain control, not part of the stationery -->
+  <div id="jump">
+    <span class="k">sheet</span>
+    <span class="sel">
+      <select id="jumpsel" aria-label="Jump to sheet">
+        <option value="0">i · opening</option>
+        <option value="1">ii · the shelf</option>
+        <option value="2">iii · evidence</option>
+        <option value="3">iv · refusals</option>
+      </select>
+      <svg viewBox="0 0 8 6" aria-hidden="true"><path d="M.8 1.6 4 4.6 7.2 1.6" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
+    </span>
+  </div>
+
+  <div id="grain"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var body = document.body;
+  var seal = document.getElementById("seal");
+  var letter = document.getElementById("letter");
+  var edges = Array.prototype.slice.call(document.querySelectorAll(".sheet-edges [role=tab]"));
+  var sheets = Array.prototype.slice.call(document.querySelectorAll("#pages .sheet"));
+  var fi = document.getElementById("fi");
+  var jumpsel = document.getElementById("jumpsel");
+
+  var page = 0;
+  var count = sheets.length;
+  var opened = false;
+  var busy = false;
+
+  /* ------------------------------------------------------- the wax, twice */
+  /* One drawing, cut in two on the fracture: the batch above the line goes up
+     with the flap, the lip below it stays on the envelope. The two paths are
+     exact complements, so the seal reads as whole until it is lifted. */
+  var FRAC = "M-45 47 L-40 44 L-34 49 L-27 42 L-14 39 L-8 46 L1 41 L7 53 L13 43 L26 40 L33 46 L38 42 L45 48";
+  var FRAC_LIP = "M-45 49.8 L-40 46.8 L-34 51.8 L-27 44.8 L-14 41.8 L-8 48.8 L1 43.8 L7 55.8 L13 45.8 L26 42.8 L33 48.8 L38 44.8 L45 50.8";
+
+  function waxBody() {
+    return '<g filter="url(#f-wax)">' +
+        '<circle r="62" fill="url(#g-wax)"/>' +
+        '<circle r="62" fill="none" stroke="url(#g-rim)" stroke-width="7"/>' +
+        '<circle r="43.5" fill="url(#g-wax-face)"/>' +
+        '<circle r="43.5" fill="none" stroke="#380A07" stroke-opacity=".62" stroke-width="2.2"/>' +
+        '<circle r="45.4" fill="none" stroke="#FFD9C6" stroke-opacity=".15" stroke-width="1.3" transform="translate(-.7 -.9)"/>' +
+        '<circle r="43.5" fill="none" stroke="#F2BCA8" stroke-opacity=".22" stroke-width="1" transform="translate(-.55 -.65)"/>' +
+      '</g>' +
+      '<g mask="url(#m-crescent)">' +
+        '<rect x="-80" y="-80" width="160" height="160" fill="url(#g-deboss)"/>' +
+      '</g>' +
+      '<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="6.9" ' +
+            'letter-spacing="1" text-anchor="middle" fill="#F4D6C6" opacity=".72">' +
+        '<textPath href="#p-legend" startOffset="50%">SEALED AND KEPT</textPath>' +
+      '</text>';
+  }
+
+  document.getElementById("sealwax").innerHTML =
+    '<svg viewBox="-80 -80 160 160">' +
+      '<g mask="url(#m-wax-top)">' +
+        '<circle r="64" fill="#180604" opacity=".55" filter="url(#f-waxshadow)"/>' +
+        waxBody() +
+        '<path class="frac-cut" d="' + FRAC + '" fill="none" stroke="#2C0704" stroke-opacity=".42" stroke-width="2.6" stroke-linejoin="round"/>' +
+      '</g>' +
+    '</svg>';
+
+  /* the lip: the same disc seen from the other side of the break, the fresh
+     face catching the lamp along its top edge */
+  document.getElementById("lip").innerHTML =
+    '<svg viewBox="-80 -80 160 160">' +
+      '<g mask="url(#m-wax-bot)">' +
+        waxBody() +
+        '<path class="frac-face" d="' + FRAC_LIP + '" fill="none" stroke="#B26454" stroke-opacity=".42" stroke-width="2.4" stroke-linejoin="round"/>' +
+      '</g>' +
+    '</svg>';
+
+  /* --------------------------------------------------------------- sheets */
+  /* A stack on one paper: the sheet you are reading *is* the paper, so it has
+     no verso of its own. The sheet that is off the stack shows one, which is
+     what makes it a sheet and not a slide. */
+  var ROMAN = ["i", "ii", "iii", "iv", "v", "vi"];
+
+  function mark() {
+    edges.forEach(function (t, k) { t.setAttribute("aria-selected", k === page ? "true" : "false"); });
+    if (fi) fi.textContent = ROMAN[page] || String(page + 1);
+    if (jumpsel && jumpsel.value !== String(page)) jumpsel.value = String(page);
+  }
+
+  /* resting state, no motion: used on load, on a jump, and on resize */
+  function settle(i) {
+    page = Math.max(0, Math.min(count - 1, i));
+    sheets.forEach(function (sh, k) {
+      sh.classList.remove("landing");
+      sh.classList.toggle("is-on", k === page);
+      sh.classList.toggle("is-up", k < page);
+    });
+    mark();
+  }
+
+  /* one sheet at a time, lifted off the top of the stack */
+  function turn(d) {
+    if (!opened || busy) return;
+    var next = page + d;
+    if (next < 0 || next >= count) return;
+    busy = true;
+
+    var from = sheets[page];
+    var to = sheets[next];
+
+    if (d > 0) {
+      /* forward: what you were reading lifts away, what was under it is read */
+      from.classList.remove("is-on");
+      from.classList.add("is-up");
+      to.classList.add("is-on");
+    } else {
+      /* back: the sheet you left comes down onto the stack again */
+      to.classList.add("landing");
+      to.classList.remove("is-up");
+      to.classList.add("is-on");
+      from.classList.remove("is-on");
+      setTimeout(function () { to.classList.remove("landing"); }, 640);
+    }
+
+    page = next;
+    mark();
+    setTimeout(function () { busy = false; }, 700);
+  }
+
+  if (jumpsel) {
+    jumpsel.addEventListener("change", function () {
+      if (opened) settle(parseInt(jumpsel.value, 10));
+    });
+  }
+
+  edges.forEach(function (t, k) {
+    t.addEventListener("click", function () {
+      if (k === page || !opened) return;
+      if (Math.abs(k - page) === 1) { turn(k - page); return; }
+      settle(k);
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-goto]"), function (el) {
+    el.addEventListener("click", function () { settle(parseInt(el.getAttribute("data-goto"), 10)); });
+  });
+
+  /* the wheel accumulates, so a trackpad flick is one sheet and not five */
+  var acc = 0, lock = 0;
+  window.addEventListener("wheel", function (e) {
+    if (!opened || (e.target.closest && e.target.closest("#jump"))) return;
+    e.preventDefault();
+    var now = Date.now();
+    if (now < lock) return;
+    acc += (Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
+    if (Math.abs(acc) > 46) {
+      turn(acc > 0 ? 1 : -1);
+      acc = 0;
+      lock = now + 820;
+    }
+  }, { passive: false });
+
+  window.addEventListener("keydown", function (e) {
+    if (e.target && e.target.closest && e.target.closest("#jump")) return;
+    if (!opened) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
+      e.preventDefault(); turn(1);
+    }
+    if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp") {
+      e.preventDefault(); turn(-1);
+    }
+    if (e.key === "Home") { e.preventDefault(); settle(0); }
+    if (e.key === "End") { e.preventDefault(); settle(count - 1); }
+  });
+
+  /* drag the sheet up to take it off, or down to bring one back */
+  var dragFrom = null, dragging = false;
+  letter.addEventListener("pointerdown", function (e) {
+    if (!opened || e.target.closest("#folio") || e.target.closest("a, button")) return;
+    dragFrom = e.clientY;
+    dragging = true;
+  });
+  letter.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var dy = e.clientY - dragFrom;
+    if (Math.abs(dy) > 58) { turn(dy < 0 ? 1 : -1); dragging = false; }
+  });
+  letter.addEventListener("pointerup", function () { dragging = false; });
+  letter.addEventListener("pointercancel", function () { dragging = false; });
+
+  /* ----------------------------------------------------------------- open */
+  function open() {
+    if (opened) return;
+    opened = true;
+    body.classList.add("opening");
+    setTimeout(function () { body.classList.add("open"); }, 1180);
+  }
+  seal.addEventListener("click", open);
+
+  window.addEventListener("resize", function () { settle(page); });
+
+  /* --------------------------------------------------- deep links to review */
+  var h = location.hash.replace("#", "");
+  if (h === "mid") { opened = true; body.classList.add("opening"); }
+  if (h === "open" || /^open-\d$/.test(h)) {
+    opened = true;
+    body.classList.add("opening", "open");
+    if (/^open-\d$/.test(h)) settle(parseInt(h.slice(-1), 10));
+  }
+
+  settle(page);
+  requestAnimationFrame(function () { settle(page); });
+  window.addEventListener("load", function () { settle(page); });
+})();
+</script>
+</body>
+</html>
