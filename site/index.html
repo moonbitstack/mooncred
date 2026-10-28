@@ -48,13 +48,18 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* ------------------------------------------------------------------- stage */
 #stage {
-  --env-w: min(92vw, 1200px, 150vh);
+  /* A hundred and twenty-eight viewport heights of width is seventy-nine of height: on a
+     short window the envelope is limited by the height it would otherwise
+     overrun — it is centred now, and must still clear the hint beneath it. */
+  --env-w: min(92vw, 1200px, 128vh);
   --env-h: calc(var(--env-w) / 1.618);
   position: fixed;
   inset: 0;
   overflow: hidden;
   perspective: 1700px;
-  perspective-origin: 50% 26%;
+  /* the vanishing point is pinned to the envelope, not the window: it sits a
+     quarter of the envelope's height below the flap's hinge, wherever that is */
+  perspective-origin: 50% calc(50% - var(--env-h) / 2 + var(--env-h) * .263);
   isolation: isolate;
 }
 
@@ -88,7 +93,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #envshadow {
   position: absolute;
   left: 50%;
-  top: 46.2%;
+  top: 50.7%;
   width: var(--env-w);
   aspect-ratio: 1.618 / 1;
   transform: translate(-50%, -50%) rotate(-.35deg) scale(1.008);
@@ -106,7 +111,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #envelope {
   position: absolute;
   left: 50%;
-  top: 45.5%;
+  top: 50%;
   width: var(--env-w);
   aspect-ratio: 1.618 / 1;
   transform: translate(-50%, -50%) rotate(-.35deg);
@@ -125,6 +130,64 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* once the letter is out there is no envelope left on the desk, only the front
    it was standing in — the rest withdraws */
 .open .envart { opacity: 0; }
+
+/* --------------------------------------------------------- what is printed */
+/* The envelope is not blank: it carries what it is and what it speaks, set
+   small in the two lower corners the way an envelope carries its address. It
+   is the only prose on the first screen, so it stays quiet — ink, not a title
+   block — and it leaves with the envelope. */
+.imprint {
+  position: absolute;
+  left: 6.6%;
+  right: 6.6%;
+  bottom: 7.6%;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 5%;
+  font-family: var(--mono);
+  font-size: clamp(6.5px, calc(var(--env-w) * .0101), 12px);
+  line-height: 1.72;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: rgba(66, 47, 28, .62);
+  transition: opacity .6s .18s ease;
+  pointer-events: none;
+}
+/* The pocket — the front of the envelope the letter stands in — is drawn over
+   the bottom fifth of the envelope the moment the flap starts to lift, and the
+   printed matter is in exactly that place. So the print goes first, quickly,
+   and the fold arrives over clean paper. */
+.opening .imprint, .open .imprint { opacity: 0; transition: opacity .42s ease; }
+.imp-name {
+  display: flex;
+  align-items: center;
+  gap: .58em;
+  margin-bottom: .34em;
+  font-size: 1.5em;
+  letter-spacing: .28em;
+  color: rgba(46, 30, 17, .9);
+}
+.imp-name i {
+  width: .46em;
+  height: .46em;
+  border-radius: 50%;
+  background: linear-gradient(155deg, #B0503F 0%, #8E2C21 45%, #611913 100%);
+  box-shadow: 0 0 0 .6px rgba(60, 16, 11, .45);
+}
+.imp-line { white-space: nowrap; }
+.imp-tag {
+  margin-bottom: .10em;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.2em;
+  letter-spacing: .03em;
+  text-transform: none;
+  color: rgba(52, 35, 20, .72);
+}
+.imp-r { text-align: right; }
+.imp-line.dim { color: rgba(66, 47, 28, .48); }
 
 /* the flap, hinged at the envelope's top edge */
 .flap3d {
@@ -285,14 +348,14 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   pointer-events: none;
   /* cut at the fold's own line, so what hides the sheet is the envelope's front
      rather than an invisible edge just below it */
-  clip-path: inset(0 0 calc(54.5% - var(--env-h) / 2 + var(--env-h) * .028) 0);
+  clip-path: inset(0 0 calc(50% - var(--env-h) / 2 + var(--env-h) * .028) 0);
 }
 #letterclip > #letter { pointer-events: auto; }
 
 #letter {
   position: absolute;
   left: 50%;
-  bottom: calc(54.5% - var(--env-h) / 2 + var(--env-h) * .045);
+  bottom: calc(50% - var(--env-h) / 2 + var(--env-h) * .045);
   width: calc(var(--env-w) * .875);
   height: calc(var(--env-h) * .905);
   margin-left: calc(var(--env-w) * -.4375);
@@ -811,7 +874,7 @@ p:last-child { margin-bottom: 0; }
 #pocket {
   position: absolute;
   left: 50%;
-  top: 45.5%;
+  top: 50%;
   width: var(--env-w);
   aspect-ratio: 1.618 / 1;
   transform: translate(-50%, -50%) rotate(-.35deg);
@@ -856,21 +919,98 @@ p:last-child { margin-bottom: 0; }
 #jump .k { opacity: .5; }
 
 .sel { position: relative; display: inline-flex; align-items: center; }
-.sel select {
+
+#jump .jumpbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   appearance: none;
   -webkit-appearance: none;
   background: none;
   border: 0;
   margin: 0;
-  padding: 0 13px 0 0;
+  padding: 0;
   font: inherit;
   letter-spacing: .06em;
   color: rgba(247, 231, 205, .9);
   cursor: pointer;
 }
-.sel select:focus-visible { outline: 1px dotted rgba(240, 222, 194, .55); outline-offset: 3px; }
-.sel select option { background: #16110d; color: #EADCC2; }
-.sel svg { position: absolute; right: 0; width: 7px; height: 5px; opacity: .5; pointer-events: none; }
+#jump .jumpbtn:focus-visible { outline: 1px dotted rgba(240, 222, 194, .55); outline-offset: 3px; }
+#jump .chev {
+  width: 7px;
+  height: 5px;
+  opacity: .5;
+  transition: transform .22s var(--ease-out), opacity .2s ease;
+}
+#jump.open .chev { transform: rotate(180deg); opacity: .8; }
+
+/* the plate's menu: chrome, like the plate — but cut from the same cloth. Each
+   sheet is a row of a ledger, and the one you are reading is marked by the same
+   wax-red rule the folio uses for the same purpose. */
+#jumplist {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: -8px;
+  min-width: 174px;
+  margin: 0;
+  padding: 3px 0;
+  list-style: none;
+  z-index: 2;
+  border: 1px solid rgba(240, 222, 194, .21);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(46, 34, 24, .985) 0%, rgba(27, 19, 14, .99) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 236, 208, .085) inset,
+    0 1px 0 rgba(0, 0, 0, .55),
+    0 18px 40px rgba(0, 0, 0, .55);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  backdrop-filter: blur(12px) saturate(1.05);
+  opacity: 0;
+  transform: translateY(-5px) scale(.99);
+  transform-origin: 100% 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .18s var(--ease-out);
+}
+#jump.open #jumplist { opacity: 1; transform: none; pointer-events: auto; }
+#jumplist li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5.5px 12px 5.5px 11px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .11em;
+  color: rgba(238, 221, 195, .68);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+#jumplist li + li { box-shadow: 0 -1px 0 rgba(240, 222, 194, .06); }
+#jumplist li .n {
+  font-size: 8.5px;
+  letter-spacing: .08em;
+  color: rgba(238, 221, 195, .46);
+  text-align: right;
+  transition: color .12s ease;
+}
+#jumplist li[data-active="true"] { background: rgba(240, 222, 194, .06); color: #F6E7CB; }
+#jumplist li[data-active="true"] .n { color: rgba(238, 221, 195, .6); }
+#jumplist li[aria-selected="true"] { color: #F6E7CB; }
+#jumplist li[aria-selected="true"] .n {
+  color: #C2564A;
+  text-shadow: 0 0 12px rgba(180, 62, 46, .45);
+}
+#jumplist li[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: linear-gradient(180deg, #7E241C, #A8453A);
+}
 
 #grain {
   position: absolute;
@@ -894,7 +1034,11 @@ p:last-child { margin-bottom: 0; }
 
 /* ----------------------------------------------------------------- narrow */
 @media (max-width: 820px) {
-  #stage { --env-w: min(94vw, 1200px, 150vh); }
+  #stage { --env-w: min(94vw, 1200px, 128vh); }
+  /* at this size the fine print would be a smudge, so only what still reads
+     at seven pixels is printed at all */
+  .imprint { font-size: 7px; letter-spacing: .12em; }
+  .imp-line.dim { display: none; }
   .foot { font-size: 8.2px; letter-spacing: .14em; gap: 6px 10px; }
   .foot .dot { display: none; }
   .refuse { gap: 16px 14px; }
@@ -1172,6 +1316,18 @@ p:last-child { margin-bottom: 0; }
       </g>
       <path d="M2 616 L998 616" fill="none" stroke="#7A5D38" stroke-opacity=".2" stroke-width="2.4"/>
     </svg>
+
+    <div class="imprint">
+      <div class="imp-l">
+        <div class="imp-name"><i></i>mooncred</div>
+        <div class="imp-tag">credentials, read and written</div>
+        <div class="imp-line dim">thirteen packages · Apache-2.0 · 0.6.4</div>
+      </div>
+      <div class="imp-r">
+        <div class="imp-line">RFC 5280 · 7516 · 9052</div>
+        <div class="imp-line dim">x509 · jwt · cose · pkcs12</div>
+      </div>
+    </div>
 
     <div id="sealmark" aria-hidden="true">
       <svg viewBox="-100 -100 200 200">
@@ -1480,13 +1636,18 @@ p:last-child { margin-bottom: 0; }
   <div id="jump">
     <span class="k">sheet</span>
     <span class="sel">
-      <select id="jumpsel" aria-label="Jump to sheet">
-        <option value="0">i · opening</option>
-        <option value="1">ii · the shelf</option>
-        <option value="2">iii · evidence</option>
-        <option value="3">iv · refusals</option>
-      </select>
-      <svg viewBox="0 0 8 6" aria-hidden="true"><path d="M.8 1.6 4 4.6 7.2 1.6" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
+      <button type="button" id="jumpbtn" class="jumpbtn" role="combobox"
+              aria-haspopup="listbox" aria-expanded="false" aria-controls="jumplist"
+              aria-label="Jump to sheet">
+        <span id="jumplabel">i · opening</span>
+        <svg class="chev" viewBox="0 0 8 6" aria-hidden="true"><path d="M.8 1.6 4 4.6 7.2 1.6" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
+      </button>
+      <ul id="jumplist" role="listbox" aria-label="Sheets" tabindex="-1">
+        <li id="jump-opt-0" role="option" data-i="0" aria-selected="true"><span class="n">i</span><span class="t">opening</span></li>
+        <li id="jump-opt-1" role="option" data-i="1" aria-selected="false"><span class="n">ii</span><span class="t">the shelf</span></li>
+        <li id="jump-opt-2" role="option" data-i="2" aria-selected="false"><span class="n">iii</span><span class="t">evidence</span></li>
+        <li id="jump-opt-3" role="option" data-i="3" aria-selected="false"><span class="n">iv</span><span class="t">refusals</span></li>
+      </ul>
     </span>
   </div>
 
@@ -1503,7 +1664,13 @@ p:last-child { margin-bottom: 0; }
   var edges = Array.prototype.slice.call(document.querySelectorAll(".sheet-edges [role=tab]"));
   var sheets = Array.prototype.slice.call(document.querySelectorAll("#pages .sheet"));
   var fi = document.getElementById("fi");
-  var jumpsel = document.getElementById("jumpsel");
+  var jump = document.getElementById("jump");
+  var jumpbtn = document.getElementById("jumpbtn");
+  var jumpLabel = document.getElementById("jumplabel");
+  var jumpList = document.getElementById("jumplist");
+  var jumpOpts = jumpList ? Array.prototype.slice.call(jumpList.querySelectorAll("[role=option]")) : [];
+  var jumpOpen = false;
+  var jumpActive = 0;
 
   var page = 0;
   var count = sheets.length;
@@ -1563,7 +1730,11 @@ p:last-child { margin-bottom: 0; }
   function mark() {
     edges.forEach(function (t, k) { t.setAttribute("aria-selected", k === page ? "true" : "false"); });
     if (fi) fi.textContent = ROMAN[page] || String(page + 1);
-    if (jumpsel && jumpsel.value !== String(page)) jumpsel.value = String(page);
+    jumpOpts.forEach(function (o, k) { o.setAttribute("aria-selected", k === page ? "true" : "false"); });
+    if (jumpLabel) {
+      var t = jumpOpts[page] ? jumpOpts[page].querySelector(".t") : null;
+      jumpLabel.textContent = (ROMAN[page] || String(page + 1)) + " · " + (t ? t.textContent : "");
+    }
   }
 
   /* resting state, no motion: used on load, on a jump, and on resize */
@@ -1606,11 +1777,74 @@ p:last-child { margin-bottom: 0; }
     setTimeout(function () { busy = false; }, 700);
   }
 
-  if (jumpsel) {
-    jumpsel.addEventListener("change", function () {
-      if (opened) settle(parseInt(jumpsel.value, 10));
+  /* ------------------------------------------------------- the reader's index */
+  /* A select element would have been less code and the wrong answer: the list
+     it opens belongs to the operating system, and that list is a white sheet
+     with a blue band, sitting on a walnut desk. So the menu is drawn here, from
+     the same plate as the button, and the keyboard is wired by hand. */
+  function jumpSetActive(i) {
+    jumpActive = Math.max(0, Math.min(jumpOpts.length - 1, i));
+    jumpOpts.forEach(function (o, k) {
+      if (k === jumpActive) o.setAttribute("data-active", "true"); else o.removeAttribute("data-active");
     });
+    if (jumpOpen) jumpbtn.setAttribute("aria-activedescendant", "jump-opt-" + jumpActive);
   }
+
+  function jumpShow(on) {
+    if (jumpOpen === on) return;
+    jumpOpen = on;
+    jump.classList.toggle("open", on);
+    jumpbtn.setAttribute("aria-expanded", on ? "true" : "false");
+    if (on) {
+      jumpSetActive(page);
+    } else {
+      jumpbtn.removeAttribute("aria-activedescendant");
+      jumpOpts.forEach(function (o) { o.removeAttribute("data-active"); });
+    }
+  }
+
+  function jumpPick(i) {
+    jumpShow(false);
+    if (opened) settle(i);
+    jumpbtn.focus();
+  }
+
+  jumpbtn.addEventListener("click", function () { jumpShow(!jumpOpen); });
+
+  jumpbtn.addEventListener("keydown", function (e) {
+    var k = e.key;
+    if (k === "ArrowDown" || k === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!jumpOpen) { jumpShow(true); return; }
+      jumpSetActive(jumpActive + (k === "ArrowDown" ? 1 : -1));
+    } else if (k === "Enter" || k === " " || k === "Spacebar") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (jumpOpen) jumpPick(jumpActive); else jumpShow(true);
+    } else if (k === "Escape") {
+      if (jumpOpen) { e.preventDefault(); e.stopPropagation(); jumpShow(false); }
+    } else if (k === "Home" || k === "End") {
+      if (jumpOpen) {
+        e.preventDefault();
+        e.stopPropagation();
+        jumpSetActive(k === "Home" ? 0 : jumpOpts.length - 1);
+      }
+    } else if (k === "Tab") {
+      jumpShow(false);
+    }
+  });
+
+  jumpOpts.forEach(function (o, k) {
+    o.addEventListener("mouseenter", function () { jumpSetActive(k); });
+    /* keep focus on the button, so the menu never loses its own keyboard */
+    o.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    o.addEventListener("click", function () { jumpPick(k); });
+  });
+
+  document.addEventListener("pointerdown", function (e) {
+    if (jumpOpen && !(e.target.closest && e.target.closest("#jump"))) jumpShow(false);
+  });
 
   edges.forEach(function (t, k) {
     t.addEventListener("click", function () {
