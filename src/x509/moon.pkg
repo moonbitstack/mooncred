@@ -7,6 +7,7 @@
 // match it against a host name or address, and validate a chain to a set of trust anchors.
 // Writes the self-signed P-256 certificate a TLS server needs, and reads its private key.
 import {
+  "moonbitstack/mooncred/pbe",
   "moonbitstack/mooncrypt/asn1",
   "moonbitstack/mooncrypt/curve",
   "moonbitstack/mooncrypt/hash/sha2",

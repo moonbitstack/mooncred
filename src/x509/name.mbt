@@ -42,6 +42,13 @@ pub fn Name::cn(self : Name) -> String? {
 }
 
 ///|
+/// A name from the DER of its `Name` SEQUENCE, for the callers outside a certificate: a
+/// certificate request's subject, a revocation list's issuer, a responder's name.
+pub fn name(der : BytesView) -> Name raise @asn1.Refused {
+  read_name(@asn1.only(der))
+}
+
+///|
 fn read_name(tlv : @asn1.Tlv) -> Name raise @asn1.Refused {
   if tlv.tag != 0x30 {
     raise @asn1.Malformed("Name is not a SEQUENCE")

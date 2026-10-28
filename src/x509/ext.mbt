@@ -234,7 +234,20 @@ fn read_constraints(v : BytesView) -> Constraints raise @asn1.Refused {
 
 ///|
 fn read_exts(t : @asn1.Tlv) -> Exts raise @asn1.Refused {
-  let seq = @asn1.only(t.value)
+  read_exts_body(@asn1.only(t.value))
+}
+
+///|
+/// The extensions a certificate carries, from the `Extensions` SEQUENCE on its own — the same
+/// encoding arrives in a certificate request's `extensionRequest` attribute and in a revocation
+/// list, so it is read here rather than at each of the three callers.
+pub fn exts(der : BytesView) -> Exts raise @asn1.Refused {
+  read_exts_body(@asn1.only(der))
+}
+
+///|
+/// The extensions, from an `Extensions` SEQUENCE that has already been read.
+fn read_exts_body(seq : @asn1.Tlv) -> Exts raise @asn1.Refused {
   if seq.tag != 0x30 {
     raise @asn1.Malformed("extensions are not a SEQUENCE")
   }
@@ -283,6 +296,159 @@ fn read_exts(t : @asn1.Tlv) -> Exts raise @asn1.Refused {
     }
   }
   { ..exts, unknown_critical, }
+}
+
+///|
+/// An `Exts` with nothing in it — the starting point for a caller assembling the extensions a
+/// certificate or a request should ask for.
+pub fn Exts::empty() -> Exts {
+  no_exts
+}
+
+///|
+/// Whether the extension is one whose value this package can write.
+fn Exts::written(self : Exts) -> Unit raise @asn1.Refused {
+  if self.constraints is Some(_) {
+    raise @asn1.Unsupported("nameConstraints are read but not written")
+  }
+  if self.unknown_critical.get(0) is Some(oid) {
+    raise @asn1.Unsupported("extension " + oid + " is read but not written")
+  }
+}
+
+///|
+/// The `Extensions` SEQUENCE for these extensions (RFC 5280 §4.2), in the order this package
+/// writes them. An extension it reads but does not write — a name constraint, or an unknown
+/// critical one whose value was dropped on the way in — is `Unsupported` rather than silently
+/// left out, because leaving it out changes what the certificate means.
+pub fn Exts::encode(self : Exts) -> Bytes raise @asn1.Refused {
+  self.written()
+  let out : Array[Bytes] = []
+  if self.ca || self.path_len is Some(_) {
+    let body : Array[Bytes] = []
+    if self.ca {
+      body.push(@asn1.tlv(0x01, b"\xff"))
+    }
+    match self.path_len {
+      Some(n) => {
+        if n < 0 || n > 255 {
+          raise @asn1.Malformed("pathLenConstraint out of range")
+        }
+        body.push(@asn1.integer(magnitude(n)))
+      }
+      None => ()
+    }
+    out.push(extension("2.5.29.19", true, @asn1.sequence(body)))
+  }
+  match self.key_usage {
+    Some(bits) => {
+      let body : Array[Byte] = [bits.unused.to_byte()]
+      let mut last = bits.bytes.length()
+      while last > 1 && bits.bytes[last - 1] == b'\x00' && bits.unused == 0 {
+        last = last - 1
+      }
+      for i in 0..<last {
+        body.push(bits.bytes[i])
+      }
+      out.push(
+        extension("2.5.29.15", true, @asn1.tlv(0x03, Bytes::from_array(body))),
+      )
+    }
+    None => ()
+  }
+  match self.eku {
+    Some(list) => {
+      if list.length() == 0 {
+        raise @asn1.Malformed("an empty extKeyUsage is not encodable")
+      }
+      let body : Array[Bytes] = []
+      for oid in list {
+        body.push(oid_der(oid))
+      }
+      out.push(extension("2.5.29.37", false, @asn1.sequence(body)))
+    }
+    None => ()
+  }
+  if self.san.length() > 0 {
+    let body : Array[Bytes] = []
+    for g in self.san {
+      body.push(name_der(g))
+    }
+    out.push(extension("2.5.29.17", false, @asn1.sequence(body)))
+  }
+  match self.ski {
+    Some(k) => out.push(extension("2.5.29.14", false, @asn1.octet_string(k)))
+    None => ()
+  }
+  match self.aki {
+    Some(k) =>
+      out.push(
+        extension("2.5.29.35", false, @asn1.sequence([@asn1.tlv(0x80, k)])),
+      )
+    None => ()
+  }
+  if out.length() == 0 {
+    raise @asn1.Malformed("an empty Extensions is not encodable")
+  }
+  @asn1.sequence(out)
+}
+
+///|
+/// One `Extension ::= SEQUENCE { extnID, critical BOOLEAN DEFAULT FALSE, extnValue OCTET
+/// STRING }`. A `FALSE` criticality is the default and is left out, which DER requires.
+fn extension(oid : String, critical : Bool, value : Bytes) -> Bytes {
+  let parts : Array[Bytes] = [oid_der(oid) catch { _ => @asn1.null() }]
+  if critical {
+    parts.push(@asn1.tlv(0x01, b"\xff"))
+  }
+  parts.push(@asn1.octet_string(value))
+  @asn1.sequence(parts)
+}
+
+///|
+/// A GeneralName as the wire writes it: the field number in the tag, because RFC 5280 makes
+/// every form IMPLICIT-tagged except `directoryName`.
+fn name_der(g : GeneralName) -> Bytes raise @asn1.Refused {
+  match g {
+    Dns(s) => @asn1.tlv(0x82, ascii_of(s))
+    Email(s) => @asn1.tlv(0x81, ascii_of(s))
+    Uri(s) => @asn1.tlv(0x86, ascii_of(s))
+    Ip(a) => @asn1.tlv(0x87, a)
+    Dir(n) => @asn1.tlv(0xa4, n.raw)
+    Named(k, v) => @asn1.tlv(0x80 | k, v)
+  }
+}
+
+///|
+fn ascii_of(s : String) -> Bytes raise @asn1.Refused {
+  let out = Buffer()
+  for c in s {
+    let n = c.to_int()
+    if n >= 0x80 {
+      raise @asn1.Malformed("a non-ASCII character in an IA5String")
+    }
+    out.write_byte(n.to_byte())
+  }
+  out.to_bytes()
+}
+
+///|
+/// A non-negative integer as the big-endian magnitude an INTEGER is built from.
+fn magnitude(n : Int32) -> Bytes {
+  let out = Buffer()
+  let mut m = n
+  let digits : Array[Byte] = []
+  if m == 0 {
+    digits.push(b'\x00')
+  }
+  while m > 0 {
+    digits.push((m % 256).to_byte())
+    m = m / 256
+  }
+  for i in 0..<digits.length() {
+    out.write_byte(digits[digits.length() - 1 - i])
+  }
+  out.to_bytes()
 }
 
 ///|

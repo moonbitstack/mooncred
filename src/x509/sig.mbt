@@ -149,37 +149,59 @@ fn ecdsa_raw(sig : BytesView, size : Int32) -> Bytes? raise @asn1.Refused {
 }
 
 ///|
-/// Check the certificate's signature under `issuer` — its issuer's key, or its own if it is
-/// self-signed. RSA PKCS#1 v1.5 and PSS with SHA-256, SHA-384 or SHA-512, ECDSA with the same
-/// three digests on any of the four curves, and Ed25519. An algorithm outside that set raises
-/// `Unsupported` rather than returning false, so a caller cannot read "not checked" as "checked
-/// and bad". A key of the wrong kind for the algorithm returns false: no signature by that
-/// algorithm verifies under it.
-pub fn Cert::signed_by(self : Cert, issuer : Spki) -> Bool raise @asn1.Refused {
-  let scheme = scheme_of(self.alg, self.params.map(p => p[:]))
-  if self.sig.unused != 0 {
+/// Check a signature made over `tbs` against `key`. The algorithm is named by its OID and the
+/// parameters of its AlgorithmIdentifier, exactly as a certificate, a certificate request, a
+/// revocation list or a response carries them.
+///
+/// RSA PKCS#1 v1.5 and PSS with SHA-256, SHA-384 or SHA-512, ECDSA with the same three digests
+/// on any of the four curves, and Ed25519. An algorithm outside that set raises `Unsupported`
+/// rather than returning false, so a caller cannot read "not checked" as "checked and bad". A
+/// key of the wrong kind for the algorithm returns false: no signature by that algorithm
+/// verifies under it.
+pub fn signature_ok(
+  tbs : BytesView,
+  alg~ : String,
+  params~ : Bytes?,
+  sig~ : @asn1.Bits,
+  key~ : Spki,
+) -> Bool raise @asn1.Refused {
+  let scheme = scheme_of(alg, params.map(p => p[:]))
+  if sig.unused != 0 {
     raise @asn1.Malformed("signature BIT STRING has unused bits")
   }
-  let sig = self.sig.bytes[:]
-  match (scheme, issuer.key()) {
-    (Pkcs1(d), Rsa(k)) => rsa_with(k, d, Pkcs1).verify(self.tbs, sig)
+  let bytes = sig.bytes[:]
+  match (scheme, key.key()) {
+    (Pkcs1(d), Rsa(k)) => rsa_with(k, d, Pkcs1).verify(tbs, bytes)
     (Pss(d), Rsa(k)) =>
-      rsa_with(k, d, Pss(salt=digest_size(d))).verify(self.tbs, sig)
+      rsa_with(k, d, Pss(salt=digest_size(d))).verify(tbs, bytes)
     (Ecdsa(kind), Ec(k)) => {
       let curve = k.curve()
-      guard ecdsa_raw(sig, curve.size()) is Some(raw) else { return false }
-      let key = @ecdsa.PublicKey::with_hash(
+      guard ecdsa_raw(bytes, curve.size()) is Some(raw) else { return false }
+      let verifying = @ecdsa.PublicKey::with_hash(
         k.bytes()[:],
         () => (@sha2.Hasher::new(kind~) : &@spec.Hash),
         curve~,
       ) catch {
         _ => return false
       }
-      key.verify(self.tbs, raw[:])
+      verifying.verify(tbs, raw[:])
     }
-    (Eddsa, Ed25519(k)) => k.verify(self.tbs, sig)
+    (Eddsa, Ed25519(k)) => k.verify(tbs, bytes)
     _ => false
   }
+}
+
+///|
+/// Check the certificate's signature under `issuer` — its issuer's key, or its own if it is
+/// self-signed.
+pub fn Cert::signed_by(self : Cert, issuer : Spki) -> Bool raise @asn1.Refused {
+  signature_ok(
+    self.tbs,
+    alg=self.alg,
+    params=self.params,
+    sig=self.sig,
+    key=issuer,
+  )
 }
 
 ///|

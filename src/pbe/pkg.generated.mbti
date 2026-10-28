@@ -1,0 +1,76 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/pbe"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn decrypt(BytesView, BytesView, passphrase~ : StringView) -> Bytes raise Refused
+
+pub fn encrypt(BytesView, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : Scheme, rounds? : Int32) -> Bytes raise Refused
+
+pub fn pkcs12_key(StringView, BytesView, id~ : Int32, rounds~ : Int32, len~ : Int32) -> Bytes raise Refused
+
+pub fn pkcs12_key_with(prf~ : Prf, StringView, BytesView, id~ : Int32, rounds~ : Int32, len~ : Int32) -> Bytes raise Refused
+
+// Errors
+pub(all) suberror Refused {
+  Malformed(String)
+  Unsupported(String)
+  Passphrase
+} derive(Eq, @debug.Debug)
+pub fn Refused::equal(Self, Self) -> Bool
+pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct Encrypted {
+  raw : Bytes
+  alg : String
+  kdf : Kdf
+  cipher : String?
+  iv : Bytes?
+  icv : Int32
+  body : Bytes
+} derive(Eq, @debug.Debug)
+pub fn Encrypted::algorithm(Self) -> Bytes raise Refused
+pub fn Encrypted::decrypt(Self, passphrase~ : StringView) -> Bytes raise Refused
+pub fn Encrypted::equal(Self, Self) -> Bool
+pub fn Encrypted::name(Self) -> String
+pub fn Encrypted::not_equal(Self, Self) -> Bool
+pub fn Encrypted::parse(BytesView) -> Self raise Refused
+pub fn Encrypted::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Kdf {
+  Pbkdf2(salt~ : Bytes, rounds~ : Int32, prf~ : String, length~ : Int32?)
+  Pkcs12(salt~ : Bytes, rounds~ : Int32)
+  Pbkdf1(salt~ : Bytes, rounds~ : Int32, md5~ : Bool)
+} derive(Eq, @debug.Debug)
+pub fn Kdf::equal(Self, Self) -> Bool
+pub fn Kdf::not_equal(Self, Self) -> Bool
+pub fn Kdf::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Prf {
+  Sha1
+  Sha224
+  Sha256
+  Sha384
+  Sha512
+}
+
+pub(all) enum Scheme {
+  Aes128Cbc
+  Aes192Cbc
+  Aes256Cbc
+  Aes128Gcm
+  Aes192Gcm
+  Aes256Gcm
+  TripleDesCbc
+  LegacyTripleDes
+  LegacyRc2
+}
+
+// Type aliases
+
+// Traits

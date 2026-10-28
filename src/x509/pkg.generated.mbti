@@ -4,6 +4,7 @@ package "moonbitstack/mooncred/x509"
 import {
   "moonbitlang/core/bigint",
   "moonbitlang/core/debug",
+  "moonbitstack/mooncred/pbe",
   "moonbitstack/mooncrypt/asn1",
   "moonbitstack/mooncrypt/rsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
@@ -15,6 +16,8 @@ pub fn alg_ec_key() -> Bytes
 
 pub fn alg_ecdsa_sha256() -> Bytes
 
+pub fn algorithm(BytesView) -> (String, Bytes?) raise @asn1.Refused
+
 pub fn common_name(String) -> Bytes
 
 pub fn dns_match(String, String) -> Bool
@@ -25,17 +28,25 @@ pub let eku_client_auth : String
 
 pub let eku_server_auth : String
 
+pub fn exts(BytesView) -> Exts raise @asn1.Refused
+
+pub fn name(BytesView) -> Name raise @asn1.Refused
+
 pub let oid_cn : String
 
 pub fn parse(BytesView) -> Cert raise @asn1.Refused
 
 pub fn pem(String) -> Bytes raise @asn1.Refused
 
+pub fn pem_wrap(BytesView, label? : String) -> String
+
 pub fn pems(String, label? : String) -> Array[Bytes] raise @asn1.Refused
 
 pub let policy : Policy
 
 pub fn self_signed(@ecdsa.PrivateKey, Bytes, String, String, String) -> Bytes
+
+pub fn signature_ok(BytesView, alg~ : String, params~ : Bytes?, sig~ : @asn1.Bits, key~ : Spki) -> Bool raise @asn1.Refused
 
 pub fn spki_of(@ecdsa.PublicKey) -> Bytes
 
@@ -116,6 +127,8 @@ pub(all) struct Exts {
   constraints : Constraints?
   unknown_critical : Array[String]
 } derive(Eq, @debug.Debug)
+pub fn Exts::empty() -> Self
+pub fn Exts::encode(Self) -> Bytes raise @asn1.Refused
 pub fn Exts::equal(Self, Self) -> Bool
 pub fn Exts::not_equal(Self, Self) -> Bool
 pub fn Exts::to_repr(Self) -> @debug.Repr
@@ -168,9 +181,15 @@ pub(all) enum PrivateKey {
   Ec(@ecdsa.PrivateKey)
   Ed25519(@ed25519.PrivateKey)
 }
+pub fn PrivateKey::encrypt(Self, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32) -> Bytes raise @pbe.Refused
+pub fn PrivateKey::encrypt_pem(Self, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32) -> String raise @pbe.Refused
 pub fn PrivateKey::pem(String) -> Self raise @asn1.Refused
+pub fn PrivateKey::pem_encrypted(String, passphrase~ : StringView) -> Self raise @pbe.Refused
+pub fn PrivateKey::pkcs8(Self) -> Bytes raise @asn1.Refused
+pub fn PrivateKey::pkcs8_pem(Self) -> String raise @asn1.Refused
 pub fn PrivateKey::public(Self) -> Key
 pub fn PrivateKey::read(BytesView) -> Self raise @asn1.Refused
+pub fn PrivateKey::read_encrypted(BytesView, passphrase~ : StringView) -> Self raise @pbe.Refused
 
 pub struct Roots {
   // private fields
@@ -186,6 +205,7 @@ pub(all) struct Spki {
   params : String?
   key : @asn1.Bits
 } derive(Eq, @debug.Debug)
+pub fn Spki::encode(Key) -> Bytes
 pub fn Spki::equal(Self, Self) -> Bool
 pub fn Spki::key(Self) -> Key raise @asn1.Refused
 pub fn Spki::not_equal(Self, Self) -> Bool

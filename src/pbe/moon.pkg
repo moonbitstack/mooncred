@@ -1,0 +1,23 @@
+// Encrypted private keys, PKCS#8: https://www.rfc-editor.org/rfc/rfc5958
+// PBES2, PBKDF2 and PBES1, RFC 8018: https://www.rfc-editor.org/rfc/rfc8018
+// PKCS#12 password-based encryption, RFC 7292 §B: https://www.rfc-editor.org/rfc/rfc7292
+//
+// Reading and writing an EncryptedPrivateKeyInfo: the PBES2 schemes built on PBKDF2, the older
+// PBES1 schemes PKCS#12 files still carry, and the three-key triple DES and RC2 the legacy ones
+// are keyed with.
+import {
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/aead/gcm",
+  "moonbitstack/mooncrypt/cipher/aes",
+  "moonbitstack/mooncrypt/hash/md5",
+  "moonbitstack/mooncrypt/hash/sha1",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/kdf/pbkdf2",
+  "moonbitstack/mooncrypt/spec",
+  "moonbitlang/core/encoding/utf8",
+}
+
+import {
+  "moonbitstack/moonbase/base16",
+  "moonbitstack/moonbase/base64",
+} for "wbtest"

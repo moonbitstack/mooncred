@@ -39,7 +39,7 @@ pub fn PrivateKey::read(der : BytesView) -> PrivateKey raise @asn1.Refused {
 /// Read the first private key in a PEM file, under any of the labels `openssl` writes:
 /// `PRIVATE KEY`, `EC PRIVATE KEY` (after which an `EC PARAMETERS` block is passed over) or
 /// `RSA PRIVATE KEY`. An encrypted key, in either the PKCS#8 or the legacy `Proc-Type` form, is
-/// `Unsupported`: decrypting it needs the passphrase and a cipher this package does not carry.
+/// `Unsupported` here: `pem_encrypted` is the reader that has a passphrase to work with.
 pub fn PrivateKey::pem(text : String) -> PrivateKey raise @asn1.Refused {
   if text.contains("-----BEGIN ENCRYPTED PRIVATE KEY-----") ||
     text.contains("Proc-Type: 4,ENCRYPTED") {
@@ -51,6 +51,118 @@ pub fn PrivateKey::pem(text : String) -> PrivateKey raise @asn1.Refused {
     }
   }
   raise @asn1.Malformed("no private key in the PEM text")
+}
+
+///|
+/// Read an encrypted PKCS#8 key — an `ENCRYPTED PRIVATE KEY` file — with the passphrase that
+/// protects it. PBES2 with PBKDF2 and AES or triple DES, and the PBES1 schemes a PKCS#12 file or
+/// an older `openssl pkcs8 -v1` writes, all open here.
+pub fn PrivateKey::read_encrypted(
+  der : BytesView,
+  passphrase~ : StringView,
+) -> PrivateKey raise @pbe.Refused {
+  let plain = @pbe.Encrypted::parse(der).decrypt(passphrase~)
+  PrivateKey::read(plain[:]) catch {
+    @asn1.Malformed(m) | @asn1.Unsupported(m) => raise @pbe.Malformed(m)
+  }
+}
+
+///|
+/// The same from the PEM text around it. A file that holds a key this package cannot decrypt is
+/// `Passphrase` when the octets do not open, which is what a wrong passphrase looks like.
+pub fn PrivateKey::pem_encrypted(
+  text : String,
+  passphrase~ : StringView,
+) -> PrivateKey raise @pbe.Refused {
+  let der = pems(text, label="ENCRYPTED PRIVATE KEY") catch {
+    @asn1.Malformed(m) | @asn1.Unsupported(m) => raise @pbe.Malformed(m)
+  }
+  guard der is [first, ..] else {
+    raise @pbe.Malformed("no encrypted private key in the PEM text")
+  }
+  PrivateKey::read_encrypted(first[:], passphrase~)
+}
+
+///|
+/// The PKCS#8 PrivateKeyInfo for a key in hand (RFC 5958): the version, the algorithm, and the
+/// SEC1 or CurvePrivateKey octets inside an OCTET STRING.
+///
+/// An RSA key cannot be rebuilt from `@rsa.PrivateKey`: the type keeps its primes to itself and
+/// offers no way to read them back, so a key that arrived as PKCS#1 or PKCS#8 cannot be turned
+/// into the other without the octets it arrived in. The caller who has those octets — the file
+/// they read the key from — encrypts them directly.
+pub fn PrivateKey::pkcs8(self : PrivateKey) -> Bytes raise @asn1.Refused {
+  match self {
+    Ec(k) => {
+      let arcs = match k.curve() {
+        P256 => [1, 2, 840, 10045, 3, 1, 7]
+        P384 => [1, 3, 132, 0, 34]
+        P521 => [1, 3, 132, 0, 35]
+        Secp256k1 => [1, 3, 132, 0, 10]
+      }
+      let inner = @asn1.sequence([
+        @asn1.integer(b"\x01"),
+        @asn1.octet_string(k.bytes()),
+        @asn1.tlv(0xa1, @asn1.bit_string(k.public().bytes())),
+      ])
+      @asn1.sequence([
+        @asn1.integer(b"\x00"),
+        @asn1.sequence([@asn1.oid([1, 2, 840, 10045, 2, 1]), @asn1.oid(arcs)]),
+        @asn1.octet_string(inner),
+      ])
+    }
+    Ed25519(k) =>
+      @asn1.sequence([
+        @asn1.integer(b"\x00"),
+        @asn1.sequence([@asn1.oid([1, 3, 101, 112])]),
+        @asn1.octet_string(@asn1.octet_string(k.bytes())),
+      ])
+    Rsa(_) =>
+      raise @asn1.Unsupported(
+        "an RSA key cannot be re-encoded from @rsa.PrivateKey; encrypt the PKCS#8 octets instead",
+      )
+  }
+}
+
+///|
+/// Encrypt a key under a passphrase, as an EncryptedPrivateKeyInfo (RFC 5958 §2).
+///
+/// `salt` and `iv` are the caller's, for the reason this library has no generator: a salt must be
+/// fresh for every file ever written, and only the caller knows where freshness comes from.
+pub fn PrivateKey::encrypt(
+  self : PrivateKey,
+  passphrase~ : StringView,
+  salt~ : BytesView,
+  iv~ : BytesView,
+  scheme~ : @pbe.Scheme = @pbe.Aes256Cbc,
+  rounds~ : Int32 = 100_000,
+) -> Bytes raise @pbe.Refused {
+  let plain = PrivateKey::pkcs8(self) catch {
+    @asn1.Malformed(m) | @asn1.Unsupported(m) => raise @pbe.Malformed(m)
+  }
+  @pbe.encrypt(plain[:], passphrase~, salt~, iv~, scheme~, rounds~)
+}
+
+///|
+/// The same as an `ENCRYPTED PRIVATE KEY` file — the text `openssl pkcs8 -topk8` writes and
+/// `openssl pkcs8 -in` reads.
+pub fn PrivateKey::encrypt_pem(
+  self : PrivateKey,
+  passphrase~ : StringView,
+  salt~ : BytesView,
+  iv~ : BytesView,
+  scheme~ : @pbe.Scheme = @pbe.Aes256Cbc,
+  rounds~ : Int32 = 100_000,
+) -> String raise @pbe.Refused {
+  let der = self.encrypt(passphrase~, salt~, iv~, scheme~, rounds~)
+  pem_wrap(der[:], label="ENCRYPTED PRIVATE KEY")
+}
+
+///|
+/// The plainkey PKCS#8 file this one would have been before a passphrase was put on it, for the
+/// keys where that can be rebuilt at all.
+pub fn PrivateKey::pkcs8_pem(self : PrivateKey) -> String raise @asn1.Refused {
+  pem_wrap(PrivateKey::pkcs8(self)[:], label="PRIVATE KEY")
 }
 
 ///|

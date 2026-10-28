@@ -37,6 +37,25 @@ pub fn pem(text : String) -> Bytes raise @asn1.Refused {
 }
 
 ///|
+/// The PEM envelope around DER (RFC 7468 §2): the label, the base64 body broken at sixty-four
+/// columns, and the closing line. What this writes, `openssl` reads — the line length and the
+/// trailing newline are the parts a strict reader notices.
+pub fn pem_wrap(der : BytesView, label~ : String = "CERTIFICATE") -> String {
+  let text = @base64.encode(der)
+  let out = StringBuilder()
+  out.write_string("-----BEGIN " + label + "-----\n")
+  let mut i = 0
+  while i < text.length() {
+    let end = if i + 64 < text.length() { i + 64 } else { text.length() }
+    out.write_string(text[i:end].to_owned())
+    out.write_string("\n")
+    i = end
+  }
+  out.write_string("-----END " + label + "-----\n")
+  out.to_string()
+}
+
+///|
 /// The DER of every PEM envelope in `text` with the label `label`, in order — a CA bundle such
 /// as `ca-certificates.crt` or curl's `cacert.pem` is a run of `CERTIFICATE` envelopes with prose
 /// between them. Envelopes with another label are passed over.

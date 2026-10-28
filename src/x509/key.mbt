@@ -43,6 +43,15 @@ pub(all) enum Key {
 }
 
 ///|
+/// An AlgorithmIdentifier from its DER: the OID in dotted-decimal form and the parameters as
+/// they were encoded, or `None` when the identifier has none. A certificate, a request, a
+/// revocation list and a response all carry one, and `signature_ok` takes exactly this pair.
+pub fn algorithm(der : BytesView) -> (String, Bytes?) raise @asn1.Refused {
+  let (oid, params) = read_alg(@asn1.only(der))
+  (oid, params.map(p => p.to_owned()))
+}
+
+///|
 fn read_alg(tlv : @asn1.Tlv) -> (String, BytesView?) raise @asn1.Refused {
   if tlv.tag != 0x30 {
     raise @asn1.Malformed("AlgorithmIdentifier is not a SEQUENCE")
@@ -189,6 +198,82 @@ pub fn Spki::key(self : Spki) -> Key raise @asn1.Refused {
       )
     }
     a => raise @asn1.Unsupported("public key algorithm " + a)
+  }
+}
+
+///|
+/// The DER of an OBJECT IDENTIFIER written in dotted-decimal form, for the writers here that
+/// build one from a constant or from a caller's string.
+fn oid_der(dotted : String) -> Bytes raise @asn1.Refused {
+  let arcs : Array[Int32] = []
+  let mut value = 0
+  let mut digits = 0
+  for c in dotted {
+    match c {
+      '0'..<='9' => {
+        value = value * 10 + (c.to_int() - '0'.to_int())
+        digits = digits + 1
+        if value > 2_000_000_000 {
+          raise @asn1.Malformed("OID arc over 32 bits")
+        }
+      }
+      '.' => {
+        if digits == 0 {
+          raise @asn1.Malformed("OID has an empty arc")
+        }
+        arcs.push(value)
+        value = 0
+        digits = 0
+      }
+      _ =>
+        raise @asn1.Malformed(
+          "OID has a character that is not a digit or a dot",
+        )
+    }
+  }
+  if digits == 0 {
+    raise @asn1.Malformed("OID has an empty arc")
+  }
+  arcs.push(value)
+  if arcs.length() < 2 {
+    raise @asn1.Malformed("OID has fewer than two arcs")
+  }
+  @asn1.oid(arcs)
+}
+
+///|
+/// The SubjectPublicKeyInfo for a public key: the algorithm, the parameters that algorithm
+/// takes — NULL for RSA, the named curve for EC, none for Ed25519 — and the key as a BIT STRING.
+/// This is what a certificate, a request or a key file carries, built from a key in hand.
+pub fn Spki::encode(key : Key) -> Bytes {
+  match key {
+    Rsa(k) =>
+      @asn1.sequence([
+        @asn1.sequence([@asn1.oid([1, 2, 840, 113549, 1, 1, 1]), @asn1.null()]),
+        @asn1.bit_string(
+          @asn1.sequence([
+            @asn1.integer(k.modulus()),
+            @asn1.integer(k.exponent()),
+          ]),
+        ),
+      ])
+    Ec(k) => {
+      let arcs = match k.curve() {
+        P256 => [1, 2, 840, 10045, 3, 1, 7]
+        P384 => [1, 3, 132, 0, 34]
+        P521 => [1, 3, 132, 0, 35]
+        Secp256k1 => [1, 3, 132, 0, 10]
+      }
+      @asn1.sequence([
+        @asn1.sequence([@asn1.oid([1, 2, 840, 10045, 2, 1]), @asn1.oid(arcs)]),
+        @asn1.bit_string(k.bytes()),
+      ])
+    }
+    Ed25519(k) =>
+      @asn1.sequence([
+        @asn1.sequence([@asn1.oid([1, 3, 101, 112])]),
+        @asn1.bit_string(k.bytes()),
+      ])
   }
 }
 
