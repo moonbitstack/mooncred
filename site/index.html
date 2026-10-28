@@ -48,11 +48,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* ------------------------------------------------------------------- stage */
 #stage {
-  /* A hundred and twenty-eight viewport heights of width is seventy-nine of height: on a
-     short window the envelope is limited by the height it would otherwise
-     overrun — it is centred now, and must still clear the hint beneath it. */
-  --env-w: min(92vw, 1200px, 128vh);
+  /* A hundred and twelve viewport heights of width is sixty-nine of height:
+     that leaves the nameplate above and the cue below a share of the window
+     that shrinks and grows with it, so neither crowds the window's edge. */
+  --env-w: min(90vw, 1200px, 112vh);
   --env-h: calc(var(--env-w) / 1.618);
+  /* The letter is a piece of paper, so its writing is measured against the
+     paper and not against the window: when the envelope gives up size, the
+     type gives up the same proportion instead of overflowing the sheet. On a
+     phone the sheet is the window, so it is measured against that instead. */
+  --doc-h: calc(var(--env-h) * .95);
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -106,6 +111,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 
 .open #envshadow { opacity: 0; }
+.opening #envelope { cursor: default; }
 
 /* ---------------------------------------------------------------- envelope */
 #envelope {
@@ -118,6 +124,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   transform-style: preserve-3d;
   transition: transform 1.6s var(--ease-out), filter 1.6s ease;
   will-change: transform;
+  cursor: pointer;
 }
 #envelope .envart {
   position: absolute;
@@ -356,9 +363,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   position: absolute;
   left: 50%;
   bottom: calc(50% - var(--env-h) / 2 + var(--env-h) * .045);
-  width: calc(var(--env-w) * .875);
-  height: calc(var(--env-h) * .905);
-  margin-left: calc(var(--env-w) * -.4375);
+  width: calc(var(--env-w) * .885);
+  height: calc(var(--env-h) * .93);
+  margin-left: calc(var(--env-w) * -.4425);
   z-index: 20;
   transform: translate3d(0, 118%, 0) rotate(0deg);
   will-change: transform;
@@ -418,11 +425,11 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   inset: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: clamp(8px, 1.4vh, 16px);
+  gap: clamp(7.5px, calc(var(--doc-h) * 0.0177), 16px);
   padding:
-    clamp(18px, 3.1vh, 34px)
+    clamp(16.5px, calc(var(--doc-h) * 0.0392), 34px)
     clamp(26px, 5.2vw, 78px)
-    104px;
+    calc(var(--doc-h) * .163);
   color: var(--ink);
   z-index: 1;
   opacity: 0;
@@ -477,12 +484,12 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   align-items: baseline;
   gap: 12px;
   font-family: var(--mono);
-  font-size: clamp(8.2px, .94vh, 10px);
+  font-size: clamp(5px, calc(var(--doc-h) * 0.0119), 10px);
   letter-spacing: .2em;
   text-transform: uppercase;
   color: #7A6547;
   border-bottom: 1px solid var(--rule);
-  padding-bottom: .9vh;
+  padding-bottom: calc(var(--doc-h) * 0.0114);
 }
 .lh .mark { width: 19px; height: 19px; flex: none; transform: translateY(2px); }
 .lh .name { letter-spacing: .26em; color: var(--ink-soft); }
@@ -493,16 +500,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .body.top { justify-content: flex-start; }
 
 h1 {
-  font-size: clamp(26px, 5.1vh, 52px);
+  font-size: clamp(26px, calc(var(--doc-h) * 0.0645), 52px);
   line-height: 1.05;
   letter-spacing: -.016em;
   font-weight: 500;
-  margin: 0 0 clamp(10px, 1.8vh, 22px);
+  margin: 0 0 clamp(9.6px, calc(var(--doc-h) * 0.0228), 22px);
   color: #1A130C;
 }
 h1 em { font-style: italic; letter-spacing: -.01em; }
 h2 {
-  font-size: clamp(25px, 4vh, 40px);
+  font-size: clamp(21.4px, calc(var(--doc-h) * 0.0506), 40px);
   line-height: 1.12;
   font-weight: 500;
   margin: 0 0 .55em;
@@ -510,14 +517,14 @@ h2 {
 }
 p {
   margin: 0 0 .85em;
-  font-size: clamp(14px, 1.95vh, 19px);
+  font-size: clamp(10.4px, calc(var(--doc-h) * 0.0246), 19px);
   line-height: 1.64;
   color: #2B2116;
   max-width: 62ch;
 }
 p:last-child { margin-bottom: 0; }
-.lede { font-size: clamp(14.5px, 2.05vh, 20px); line-height: 1.58; }
-.small { font-size: clamp(11.5px, 1.45vh, 14px); color: var(--ink-soft); line-height: 1.62; }
+.lede { font-size: clamp(10.9px, calc(var(--doc-h) * 0.0259), 20px); line-height: 1.58; }
+.small { font-size: clamp(7.7px, calc(var(--doc-h) * 0.0183), 14px); color: var(--ink-soft); line-height: 1.62; }
 .mono { font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
 
 .dropcap::first-letter {
@@ -571,7 +578,7 @@ p:last-child { margin-bottom: 0; }
   color: var(--ink-faint);
   transition: color .35s ease;
 }
-.idx-row .t { font-size: clamp(12px, 1.5vh, 14.4px); color: #241A10; line-height: 1.3; }
+.idx-row .t { font-size: clamp(8px, calc(var(--doc-h) * 0.0190), 14.4px); color: #241A10; line-height: 1.3; }
 .idx-row .d {
   grid-column: 2;
   font-family: var(--mono);
@@ -604,14 +611,14 @@ p:last-child { margin-bottom: 0; }
   align-items: center;
   flex-wrap: wrap;
   gap: 7px 14px;
-  margin-top: clamp(12px, 2.2vh, 26px);
+  margin-top: clamp(11.7px, calc(var(--doc-h) * 0.0278), 26px);
   border-top: 1px solid rgba(58, 42, 26, .3);
   border-bottom: 1px solid rgba(58, 42, 26, .3);
   padding: .95em 0;
 }
 .band code {
   font-family: var(--mono);
-  font-size: clamp(11.5px, 1.5vh, 14.5px);
+  font-size: clamp(8px, calc(var(--doc-h) * 0.0190), 14.5px);
   letter-spacing: .02em;
   color: #2A2016;
 }
@@ -633,9 +640,9 @@ p:last-child { margin-bottom: 0; }
   gap: 8px 16px;
   flex-wrap: wrap;
   border-top: 1px solid var(--rule);
-  padding-top: .9vh;
+  padding-top: calc(var(--doc-h) * 0.0114);
   font-family: var(--mono);
-  font-size: clamp(7.6px, .92vh, 9.6px);
+  font-size: clamp(4.9px, calc(var(--doc-h) * 0.0116), 9.6px);
   letter-spacing: .19em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -658,7 +665,7 @@ p:last-child { margin-bottom: 0; }
   gap: .9em;
   padding: .66em 0;
   border-bottom: 1px solid rgba(58, 42, 26, .14);
-  font-size: clamp(12px, 1.62vh, 14.8px);
+  font-size: clamp(8.7px, calc(var(--doc-h) * 0.0205), 14.8px);
 }
 .reg-row .pkg  { font-family: var(--mono); letter-spacing: .02em; color: #241A10; }
 .reg-row .what { color: #4C3D2C; line-height: 1.4; font-size: .95em; }
@@ -669,7 +676,7 @@ p:last-child { margin-bottom: 0; }
 .ev2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(14px, 2.8vh, 34px) clamp(24px, 4vw, 62px);
+  gap: clamp(14px, calc(var(--doc-h) * 0.0354), 34px) clamp(24px, 4vw, 62px);
   align-content: start;
 }
 .evc {
@@ -679,11 +686,11 @@ p:last-child { margin-bottom: 0; }
   border-top: 1px solid rgba(58, 42, 26, .26);
   padding-top: .8em;
 }
-.evc .ev-cmd { font-size: clamp(10.5px, 1.42vh, 13.6px); }
-.evc .ev-out { font-size: clamp(11.5px, 1.52vh, 14.6px); line-height: 1.6; color: #4A3B2A; }
+.evc .ev-cmd { font-size: clamp(7.6px, calc(var(--doc-h) * 0.0179), 13.6px); }
+.evc .ev-out { font-size: clamp(8.1px, calc(var(--doc-h) * 0.0192), 14.6px); line-height: 1.6; color: #4A3B2A; }
 
 /* evidence */
-.ev { display: flex; flex-direction: column; gap: clamp(9px, 1.7vh, 19px); }
+.ev { display: flex; flex-direction: column; gap: clamp(9px, calc(var(--doc-h) * 0.0215), 19px); }
 .ev-row {
   display: grid;
   grid-template-columns: minmax(0, 15.5em) minmax(0, 1fr);
@@ -693,9 +700,9 @@ p:last-child { margin-bottom: 0; }
   border-bottom: 1px solid rgba(58, 42, 26, .14);
 }
 .ev-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.ev-cmd { font-family: var(--mono); font-size: clamp(10px, 1.24vh, 12.2px); color: #2A2016; }
+.ev-cmd { font-family: var(--mono); font-size: clamp(6.6px, calc(var(--doc-h) * 0.0157), 12.2px); color: #2A2016; }
 .ev-cmd b { font-weight: 400; color: var(--wax); }
-.ev-out { font-size: clamp(11.6px, 1.44vh, 14px); line-height: 1.55; color: #4A3B2A; }
+.ev-out { font-size: clamp(7.7px, calc(var(--doc-h) * 0.0182), 14px); line-height: 1.55; color: #4A3B2A; }
 .ev-out code {
   font-family: var(--mono); font-size: .9em;
   background: rgba(90, 70, 44, .09); padding: .1em .3em; border-radius: 2px;
@@ -704,7 +711,7 @@ p:last-child { margin-bottom: 0; }
 /* a tally in the foot of the page */
 .tally {
   margin-top: auto;
-  padding-top: clamp(14px, 2.4vh, 26px);
+  padding-top: clamp(12.8px, calc(var(--doc-h) * 0.0303), 26px);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   border-top: 1px solid rgba(58, 42, 26, .18);
@@ -720,7 +727,7 @@ p:last-child { margin-bottom: 0; }
 .tally b {
   font-family: var(--serif);
   font-weight: 500;
-  font-size: clamp(22px, 3.4vh, 34px);
+  font-size: clamp(18.2px, calc(var(--doc-h) * 0.0430), 34px);
   line-height: 1;
   color: #241A10;
   letter-spacing: -.02em;
@@ -736,8 +743,8 @@ p:last-child { margin-bottom: 0; }
 .stamp {
   position: absolute;
   right: clamp(36px, 6.6vw, 118px);
-  top: clamp(58px, 10vh, 104px);
-  width: clamp(96px, 15vh, 152px);
+  top: clamp(53.4px, calc(var(--doc-h) * 0.1264), 104px);
+  width: clamp(80px, calc(var(--doc-h) * 0.1896), 152px);
   transform: rotate(-11deg);
   opacity: .62;
   color: var(--wax);
@@ -746,12 +753,12 @@ p:last-child { margin-bottom: 0; }
 }
 
 /* refusals */
-.refuse { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 6.2vh, 66px) clamp(20px, 4vw, 54px); }
+.refuse { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, calc(var(--doc-h) * 0.0784), 66px) clamp(20px, 4vw, 54px); }
 .refuse > div { border-top: 1px solid rgba(58, 42, 26, .22); padding-top: .8em; }
-.refuse h3 { font-size: clamp(14px, 1.9vh, 17.5px); font-weight: 500; margin: 0 0 .32em; color: #201810; }
-.refuse p { font-size: clamp(11.8px, 1.48vh, 14.2px); line-height: 1.58; margin: 0; color: #4A3B2A; max-width: none; }
+.refuse h3 { font-size: clamp(10.1px, calc(var(--doc-h) * 0.0240), 17.5px); font-weight: 500; margin: 0 0 .32em; color: #201810; }
+.refuse p { font-size: clamp(7.9px, calc(var(--doc-h) * 0.0187), 14.2px); line-height: 1.58; margin: 0; color: #4A3B2A; max-width: none; }
 
-.sign { display: flex; align-items: flex-end; gap: 16px; margin-top: clamp(26px, 5.8vh, 62px); }
+.sign { display: flex; align-items: flex-end; gap: 16px; margin-top: clamp(26px, calc(var(--doc-h) * 0.0733), 62px); }
 .sign .flourish { width: 118px; height: 40px; flex: none; color: var(--wax); opacity: .8; }
 .sign .who {
   font-family: var(--mono); font-size: 9px; letter-spacing: .22em;
@@ -759,17 +766,17 @@ p:last-child { margin-bottom: 0; }
 }
 .sign .who b {
   display: block; font-family: var(--serif); font-weight: 500;
-  font-size: clamp(13px, 1.7vh, 16px); letter-spacing: .01em;
+  font-size: clamp(9.1px, calc(var(--doc-h) * 0.0215), 16px); letter-spacing: .01em;
   text-transform: none; color: #241A10;
 }
 
 .ghost {
   position: absolute;
   right: clamp(16px, 3vw, 48px);
-  bottom: clamp(44px, 6vh, 64px);
+  bottom: clamp(32px, calc(var(--doc-h) * 0.0758), 64px);
   font-family: var(--serif);
   font-style: italic;
-  font-size: clamp(90px, 20vh, 210px);
+  font-size: clamp(90px, calc(var(--doc-h) * 0.2528), 210px);
   line-height: .78;
   color: rgba(90, 68, 40, .085);
   pointer-events: none;
@@ -834,8 +841,91 @@ p:last-child { margin-bottom: 0; }
   box-shadow: 0 0 1px rgba(120, 34, 26, .55);
 }
 
+/* ---------------------------------------------------------------- masthead */
+/* A sealed letter on a desk is an image, not a page. A stranger arriving at it
+   cannot tell documentation from a greeting card, nor that opening it is the
+   point at all. So the desk carries what the cover cannot say: whose it is,
+   what the library is for. It is chrome, like the jump plate — set in the ink
+   of the interface rather than printed on the stationery — and it goes the
+   moment the seal breaks, because after that the letter speaks for itself. */
+#masthead {
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% + var(--env-h) / 2 + clamp(14px, calc(var(--env-w) * .025), 34px));
+  z-index: 41;
+  width: min(92vw, 900px);
+  transform: translateX(-50%);
+  text-align: center;
+  transition: opacity .5s ease, transform .6s var(--ease-out);
+}
+.opening #masthead, .open #masthead {
+  opacity: 0;
+  transform: translate(-50%, -9px);
+  pointer-events: none;
+}
+#masthead .kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .85em;
+  margin: 0 0 clamp(4px, calc(var(--env-w) * .006), 12px);
+  font-family: var(--mono);
+  font-size: clamp(9px, calc(var(--env-w) * .0118), 11.6px);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: rgba(240, 226, 202, .8);
+}
+#masthead .kicker i {
+  flex: none;
+  width: clamp(4px, calc(var(--env-w) * .0048), 6px);
+  height: clamp(4px, calc(var(--env-w) * .0048), 6px);
+  border-radius: 50%;
+  background: linear-gradient(150deg, #C3604C 0%, #8C2A21 55%, #611913 100%);
+  box-shadow: 0 0 0 .5px rgba(40, 10, 7, .55), 0 0 12px rgba(176, 60, 45, .38);
+}
+#masthead h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(24px, calc(var(--env-w) * .0475), 50px);
+  line-height: 1.04;
+  letter-spacing: .012em;
+  color: #F2E5CD;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .5), 0 8px 34px rgba(255, 206, 146, .10);
+}
+
+/* What is inside goes under the envelope, where the hand already is: the
+   sentence and then the instruction, one above the other. */
+#footnote {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(14px, 3.9vh, 42px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 1.4vh, 16px);
+  width: min(92vw, 900px);
+  transform: translateX(-50%);
+  text-align: center;
+  transition: opacity .5s ease, transform .6s var(--ease-out);
+}
+.opening #footnote, .open #footnote {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  pointer-events: none;
+}
+#footnote .deck {
+  margin: 0;
+  max-width: min(100%, 860px);
+  font-size: clamp(10.5px, calc(var(--env-w) * .0157), 15px);
+  line-height: 1.6;
+  color: rgba(234, 218, 193, .74);
+  text-wrap: pretty;
+}
+
 /* ------------------------------------------------------------------- hint */
-#hint, #hint2 {
+#hint2 {
   position: absolute;
   left: 50%;
   bottom: 6.6vh;
@@ -845,21 +935,68 @@ p:last-child { margin-bottom: 0; }
   align-items: center;
   gap: 12px;
   font-family: var(--mono);
-  font-size: 9.2px;
+  font-size: 9.8px;
   letter-spacing: .26em;
   text-transform: uppercase;
-  color: rgba(233, 216, 190, .55);
+  color: rgba(235, 219, 193, .7);
   transition: opacity .7s ease, transform .7s ease;
   pointer-events: none;
 }
 #hint::before, #hint::after, #hint2::before, #hint2::after {
   content: "";
-  width: clamp(18px, 4vw, 54px);
+  width: clamp(20px, 4.6vw, 62px);
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(233, 216, 190, .38));
+  background: linear-gradient(90deg, transparent, rgba(235, 219, 193, .5));
 }
-#hint::after, #hint2::after { background: linear-gradient(270deg, transparent, rgba(233, 216, 190, .38)); }
-.opening #hint { opacity: 0; transform: translate(-50%, 8px); }
+#hint::after, #hint2::after { background: linear-gradient(270deg, transparent, rgba(235, 219, 193, .5)); }
+
+/* The cue is the one thing on the cover that must be recognised as an action
+   rather than a caption: it is a button, it answers the pointer, it takes the
+   keyboard, and the envelope behind it is clickable too. */
+#hint {
+  position: static;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: clamp(9.6px, calc(var(--env-w) * .0114), 11.2px);
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: rgba(242, 227, 202, .8);
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 7px 2px;
+  border-radius: 2px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color .45s ease, opacity .7s ease, transform .7s ease;
+}
+#hint .lbl { animation: cue-breathe 6.4s ease-in-out infinite; }
+@keyframes cue-breathe {
+  0%, 100% { opacity: .78; }
+  50%      { opacity: 1; }
+}
+#hint:hover, #hint:focus-visible { color: rgba(249, 235, 210, .97); }
+#hint:hover::before { background: linear-gradient(90deg, transparent, rgba(242, 224, 196, .62)); }
+#hint:hover::after  { background: linear-gradient(270deg, transparent, rgba(242, 224, 196, .62)); }
+#hint:focus-visible { outline: 1px solid rgba(240, 222, 194, .5); outline-offset: 6px; }
+#hint kbd {
+  margin-left: -4px;
+  padding: 2px 4px 1px;
+  border: 1px solid rgba(240, 222, 194, .26);
+  border-radius: 2px;
+  background: rgba(255, 238, 210, .045);
+  font: inherit;
+  font-size: .92em;
+  line-height: 1;
+  letter-spacing: 0;
+  color: rgba(244, 229, 203, .82);
+  transition: border-color .45s ease, color .45s ease;
+}
+#hint:hover kbd, #hint:focus-visible kbd { border-color: rgba(240, 222, 194, .52); color: #FBEFD9; }
+.opening #hint { opacity: 0; }
 
 #hint2 { opacity: 0; }
 .open #hint2 { animation: hint-pass 7s 1.5s forwards; }
@@ -1030,11 +1167,12 @@ p:last-child { margin-bottom: 0; }
   #jump { transition-duration: .001s; }
   .opening .flap3d { animation-duration: .001s; }
   .halo { animation: none; }
+  #hint .lbl { animation: none; }
 }
 
 /* ----------------------------------------------------------------- narrow */
 @media (max-width: 820px) {
-  #stage { --env-w: min(94vw, 1200px, 128vh); }
+  #stage { --env-w: min(94vw, 1200px, 128vh); --doc-h: 79.1vh; }
   /* at this size the fine print would be a smudge, so only what still reads
      at seven pixels is printed at all */
   .imprint { font-size: 7px; letter-spacing: .12em; }
@@ -1060,7 +1198,14 @@ p:last-child { margin-bottom: 0; }
   .refuse > div:nth-child(n+4) { display: none; }
   .stamp { width: 62px; right: 14px; top: 50px; }
   .margin-note, .ghost { display: none; }
-  #hint, #hint2 { font-size: 8px; letter-spacing: .2em; bottom: 11vh; }
+    #hint2 { font-size: 8px; letter-spacing: .2em; bottom: 11vh; }
+  /* On a phone the envelope is a band across the middle, so the sentence
+     belongs directly under it rather than stranded at the foot of the screen. */
+  #footnote { bottom: auto; top: calc(50% + var(--env-h) / 2 + 26px); }
+  #masthead { width: 92vw; }
+  #masthead .kicker { font-size: 8.8px; letter-spacing: .17em; gap: .62em; }
+  #masthead h1 { font-size: 32px; }
+  #masthead .deck { font-size: 11.8px; line-height: 1.55; max-width: min(100%, 330px); }
   /* on a phone the footer uses the whole width, so the edges drop below it */
   #folio { right: 16px; bottom: 13px; }
   #jump { top: 8px; right: 8px; font-size: 9px; letter-spacing: .08em; }
@@ -1070,12 +1215,35 @@ p:last-child { margin-bottom: 0; }
   .sheet-edges button { width: 24px; }
 }
 
+/* A short window: the sheet keeps its type and gives up its margin index
+   instead — an index is a convenience, a legible paragraph is not. */
+@media (max-height: 760px) {
+  .p1 { grid-template-columns: minmax(0, 1fr); }
+  .p1-idx { display: none; }
+}
+
+/* A laptop with a short window: the paper is small, so its writing closes up
+   a little and the foot it must keep clear of the pocket fold gets shorter. */
+@media (max-height: 700px) {
+  #stage { --doc-h: calc(var(--env-h) * .86); }
+  .sheet { padding-bottom: calc(var(--doc-h) * .12); }
+  .reg-row { padding: .5em 0; }
+}
+
 @media (max-height: 640px) {
-  h1 { font-size: clamp(22px, 4.4vh, 34px); }
-  p { font-size: clamp(11.5px, 1.6vh, 14px); line-height: 1.52; }
+  /* the type already follows the paper, so only the spacing is tightened here */
   .ev { gap: 8px; }
   .sign { margin-top: 8px; }
   .sign .flourish { display: none; }
+}
+
+/* Smaller paper than any letter should carry: the register keeps its first
+   eight formats rather than the row heights collapsing into each other. */
+@media (max-height: 620px) {
+  .reg { grid-template-rows: repeat(4, auto); }
+  .reg-row:nth-child(n+9) { display: none; }
+  .tally { padding-top: 8px; }
+  .tally span { display: none; }
 }
 </style>
 </head>
@@ -1293,6 +1461,12 @@ p:last-child { margin-bottom: 0; }
 
   <!-- what the envelope is sitting on: without it the envelope floats -->
   <div id="envshadow" aria-hidden="true"></div>
+
+  <!-- what the cover cannot say by itself -->
+  <header id="masthead">
+    <p class="kicker"><i></i>documentation · four sheets · v0.6.4</p>
+    <h1>mooncred</h1>
+  </header>
 
   <!-- -------------------------------------------------------- the envelope -->
   <div id="envelope" aria-label="A sealed envelope">
@@ -1629,7 +1803,10 @@ p:last-child { margin-bottom: 0; }
     </svg>
   </div>
 
-  <div id="hint">break the seal</div>
+  <div id="footnote">
+    <p class="deck">Thirteen MoonBit packages for the credentials a system must trust and the ones it must present — X.509, JWT, COSE, PKCS#12.</p>
+    <button id="hint" type="button"><span class="lbl">break the seal</span><kbd aria-hidden="true">↵</kbd></button>
+  </div>
   <div id="hint2" aria-hidden="true">scroll · or drag the sheet</div>
 
   <!-- the reader's index: a plain control, not part of the stationery -->
@@ -1911,6 +2088,12 @@ p:last-child { margin-bottom: 0; }
     setTimeout(function () { body.classList.add("open"); }, 1180);
   }
   seal.addEventListener("click", open);
+  /* the seal is the right place to press, not the only one: the cue and the
+     envelope it points at both answer to a click */
+  var cue = document.getElementById("hint");
+  if (cue) cue.addEventListener("click", open);
+  var env = document.getElementById("envelope");
+  if (env) env.addEventListener("click", open);
 
   window.addEventListener("resize", function () { settle(page); });
 
