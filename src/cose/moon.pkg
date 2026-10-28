@@ -1,0 +1,19 @@
+// COSE, RFC 9052: https://www.rfc-editor.org/rfc/rfc9052
+// COSE algorithms, RFC 9053: https://www.rfc-editor.org/rfc/rfc9053
+// CWT, RFC 8392: https://www.rfc-editor.org/rfc/rfc8392
+//
+// Three structures — COSE_Sign1, COSE_Mac0, COSE_Encrypt0 — and the claim set CWT signs.
+import {
+  "moonbitstack/mooncred/cbor",
+  "moonbitstack/mooncrypt/cipher/aes",
+  "moonbitstack/mooncrypt/aead/gcm",
+  "moonbitstack/mooncrypt/spec",
+}
+
+// The vectors are hex, and the MAC and signature keys are the test's own.
+import {
+  "moonbitstack/moonbase/base16",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/sign/ed25519",
+} for "wbtest"

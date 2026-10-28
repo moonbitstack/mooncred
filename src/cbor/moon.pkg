@@ -1,0 +1,12 @@
+// CBOR, RFC 8949: https://www.rfc-editor.org/rfc/rfc8949
+//
+// What COSE and CWT are written in, and nothing more: the subset those two use, with definite
+// lengths only.
+import {
+  "moonbitlang/core/encoding/utf8",
+}
+
+// The vectors are hex.
+import {
+  "moonbitstack/moonbase/base16",
+} for "wbtest"

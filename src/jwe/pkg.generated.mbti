@@ -1,0 +1,64 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/jwe"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitstack/mooncrypt/rsa",
+}
+
+// Values
+pub fn decrypt(StringView, key~ : Identity, alg~ : Alg, enc~ : Enc) -> Bytes raise Refused
+
+pub fn encrypt(BytesView, key~ : Key, alg~ : Alg, enc~ : Enc, cek? : Bytes?, iv~ : BytesView, seed? : BytesView) -> String raise Refused
+
+pub fn unwrap(BytesView, BytesView) -> Bytes raise Refused
+
+pub fn wrap(BytesView, BytesView) -> Bytes raise Refused
+
+// Errors
+pub(all) suberror Refused {
+  Malformed(String)
+  Unsupported(String)
+  Key
+} derive(Eq, @debug.Debug)
+pub fn Refused::equal(Self, Self) -> Bool
+pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) enum Alg {
+  Dir
+  A128Kw
+  A192Kw
+  A256Kw
+  RsaOaep256
+} derive(Eq, @debug.Debug)
+pub fn Alg::equal(Self, Self) -> Bool
+pub fn Alg::not_equal(Self, Self) -> Bool
+pub fn Alg::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Enc {
+  A128Gcm
+  A192Gcm
+  A256Gcm
+  A128CbcHs256
+  A192CbcHs384
+  A256CbcHs512
+} derive(Eq, @debug.Debug)
+pub fn Enc::equal(Self, Self) -> Bool
+pub fn Enc::not_equal(Self, Self) -> Bool
+pub fn Enc::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Identity {
+  Shared(Bytes)
+  Rsa(@rsa.PrivateKey)
+}
+
+pub(all) enum Key {
+  Shared(Bytes)
+  Rsa(@rsa.PublicKey)
+}
+
+// Type aliases
+
+// Traits

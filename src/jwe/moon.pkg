@@ -1,0 +1,24 @@
+// JSON Web Encryption, RFC 7516: https://www.rfc-editor.org/rfc/rfc7516
+// JSON Web Algorithms, RFC 7518: https://www.rfc-editor.org/rfc/rfc7518
+// AES Key Wrap, RFC 3394: https://www.rfc-editor.org/rfc/rfc3394
+//
+// The compact serialisation only, which is the one that travels in a header or a URL: five
+// base64url parts — the header, the wrapped key, the IV, the ciphertext and the tag.
+import {
+  "moonbitstack/mooncrypt/cipher/aes",
+  "moonbitstack/mooncrypt/aead/gcm",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/rsa",
+  "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonbase/base64",
+  "moonbitstack/moonjson/json",
+  "moonbitlang/core/encoding/utf8",
+}
+
+// The vectors are hex, and the RSA key is also carried as the PEM openssl wrote, so the number
+// this package wraps to can be read back out of the key file itself.
+import {
+  "moonbitstack/moonbase/base16",
+  "moonbitstack/mooncred/x509",
+} for "wbtest"

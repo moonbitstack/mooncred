@@ -1,0 +1,107 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/mooncred/cose"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitstack/mooncred/cbor",
+  "moonbitstack/mooncrypt/spec",
+}
+
+// Values
+pub fn decrypt0(BytesView, alg~ : Alg, key~ : BytesView, external? : BytesView) -> Bytes raise Refused
+
+pub fn encrypt0(BytesView, alg~ : Alg, key~ : BytesView, iv~ : BytesView, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+
+pub fn mac(() -> &@spec.Mac) -> Keyed
+
+pub fn mac0(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+
+pub fn macd(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+
+pub fn parse(BytesView, tag~ : UInt64) -> Message raise Refused
+
+pub fn sign1(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+
+pub fn signed(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+
+pub fn uncovered(BytesView, alg~ : Alg, &@spec.Verifier, now? : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
+
+pub fn verified(BytesView, alg~ : Alg, &@spec.Verifier, now? : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
+
+pub fn verify1(BytesView, alg~ : Alg, &@spec.Verifier, external? : BytesView) -> Bytes raise Refused
+
+pub fn verify_mac0(BytesView, alg~ : Alg, &@spec.Verifier, external? : BytesView) -> Bytes raise Refused
+
+// Errors
+pub(all) suberror Refused {
+  Malformed(String)
+  Unsupported(String)
+  Signature
+  Key
+  Expired(at~ : Int64)
+  TooEarly(at~ : Int64)
+} derive(Eq, @debug.Debug)
+pub fn Refused::equal(Self, Self) -> Bool
+pub fn Refused::not_equal(Self, Self) -> Bool
+pub fn Refused::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) enum Alg {
+  Es256
+  EdDsa
+  Rs256
+  Hs256
+  A128Gcm
+  A192Gcm
+  A256Gcm
+} derive(Eq, @debug.Debug)
+pub fn Alg::equal(Self, Self) -> Bool
+pub fn Alg::name(Self) -> String
+pub fn Alg::not_equal(Self, Self) -> Bool
+pub fn Alg::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Claims {
+  iss : String?
+  sub : String?
+  aud : String?
+  exp : Int64?
+  nbf : Int64?
+  iat : Int64?
+  cti : Bytes?
+} derive(Eq, @debug.Debug)
+pub fn Claims::check(Self, now~ : Clock, leeway? : Int64) -> Unit raise Refused
+pub fn Claims::equal(Self, Self) -> Bool
+pub fn Claims::new(iss? : String, sub? : String, aud? : String, exp? : Int64, nbf? : Int64, iat? : Int64, cti? : Bytes) -> Self
+pub fn Claims::not_equal(Self, Self) -> Bool
+pub fn Claims::of(@cbor.Value) -> Self raise Refused
+pub fn Claims::to_repr(Self) -> @debug.Repr
+pub fn Claims::value(Self) -> @cbor.Value
+
+pub(all) enum Clock {
+  At(Int64)
+  Ignored
+} derive(Eq, @debug.Debug)
+pub fn Clock::equal(Self, Self) -> Bool
+pub fn Clock::not_equal(Self, Self) -> Bool
+pub fn Clock::to_repr(Self) -> @debug.Repr
+
+pub struct Keyed {
+  make : () -> &@spec.Mac
+}
+pub fn Keyed::sign(Self, BytesView) -> Bytes
+pub fn Keyed::verify(Self, BytesView, BytesView) -> Bool
+pub impl @spec.Signer for Keyed
+pub impl @spec.Verifier for Keyed
+
+pub(all) struct Message {
+  head : Bytes
+  payload : Bytes
+  tail : Bytes
+} derive(Eq, @debug.Debug)
+pub fn Message::equal(Self, Self) -> Bool
+pub fn Message::not_equal(Self, Self) -> Bool
+pub fn Message::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
