@@ -1,7 +1,12 @@
 # mooncred
 
-Credential formats for MoonBit: JSON Web Tokens, and the keys they are verified
-with.
+Credential formats for MoonBit: tokens, certificates, the requests that ask for
+them, the containers they travel in, and the ways they are judged.
+
+One rule runs through all of it — the algorithm a message claims is never the
+algorithm a verifier uses. Every reader here takes the algorithm as an argument,
+compares it with what the message says, and refuses the message when the two
+disagree.
 
 ```moonbit
 // The key is whatever signs. Here, HMAC over SHA-256.
@@ -22,7 +27,16 @@ let got = @jwt.verify(token[:], HS256, key, now=now_seconds,
 |:--:|:--|:--|
 | `jwt` | JWS compact serialisation, all thirteen JOSE algorithms | RFC 7515, 7518, 7519, 8037 |
 | `jwk` | JSON Web Key and key sets: reading, writing, choosing | RFC 7517, RFC 7518 §6 |
+| `jwe` | JSON Web Encryption: five-part compact serialisation, key wrapping, GCM and CBC-HMAC | RFC 7516, RFC 7518, RFC 3394 |
+| `token` | A signed string for a cookie or a URL: expiry on verify, a salt per purpose, key rotation | — |
 | `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA or Ed25519, match it against a host, validate a chain to a set of trust anchors; build a self-signed P-256 one; read the private key that goes with it | RFC 5280, RFC 6125, RFC 7468, RFC 5958, RFC 5915 |
+| `csr` | Certificate signing requests: read one, check its signature, see what it asks for, and write one | RFC 2986, RFC 2985 §5.4 |
+| `pbe` | Encrypted private keys: PBES2 with PBKDF2, and the older PBES1 and PKCS#12 derivations openssl still writes | RFC 8018, RFC 7292 §B.2 |
+| `pkcs12` | PFX containers: the certificate chain and the key, with a MAC, read and written | RFC 7292, RFC 5652 |
+| `revoke` | Revocation lists and OCSP responses: read one and judge a certificate good, revoked or unknown | RFC 5280 §5, RFC 6960 |
+| `policy` | Certificate policies over a chain: the §6.1 tree, mappings and the three counters | RFC 5280 §6.1 |
+| `cbor` | CBOR, the subset COSE and CWT are written in | RFC 8949 |
+| `cose` | COSE_Sign1, COSE_Mac0, COSE_Encrypt0, and CWT claim sets | RFC 9052, RFC 9053, RFC 8392 |
 | `roots` | The Mozilla CA store as trust anchors, from curl's extract | — |
 
 ## The algorithm is not the token's to choose
@@ -176,7 +190,90 @@ key.public() == cert.spki.key()           // whether the two belong together
 PKCS#8, SEC1 and PKCS#1 are told apart by their structure, so `PrivateKey::read`
 takes the DER of any of them. A key whose parts disagree (primes that do not
 make the modulus, an embedded public point that is not its own, two curves) is
-`Malformed`; an encrypted key is `Unsupported`.
+`Malformed`; an encrypted key is `Unsupported` — unless it is handed to
+`read_encrypted` with the passphrase, which is what `pbe` is for.
+
+## Requests, containers and revocation
+
+The rest of what a certificate authority does, in the same shape: a reader that
+takes octets, a writer that produces them, and no decision made on the caller's
+behalf.
+
+```moonbit
+// A request to be signed, and the same request read back.
+let request = @csr.Request::self_signed(key, subject="csr.example.com", exts~)
+request.verified()                       // the signature, over the octets that arrived
+request.asks_for("1.2.3.4")              // the extensionRequest attributes
+
+// A key at rest, and the container that holds it.
+let sealed = private_key.encrypt(passphrase~, salt~, iv~, scheme=Aes256Cbc)
+@x509.PrivateKey::read_encrypted(sealed[:], passphrase~)
+let pfx = @pkcs12.build(certs~, key~, passphrase~, salt~, iv~, mac_salt~)
+@pkcs12.parse(pfx[:]).contents(passphrase~)
+
+// Revocation, without a network in the library.
+let list = @revoke.Crl::pem(text)
+list.fresh(now~)                         // thisUpdate and nextUpdate, against the caller's clock
+list.status(cert)                        // Good, Revoked(reason), or Unknown
+```
+
+`pbe` and `pkcs12` carry the two derivations openssl writes without being asked:
+PBES2 with PBKDF2, which is what every current file uses, and PBES1 with the
+older PKCS#12 key derivation, which is what a file from 2009 uses. Both are read;
+only the modern one is written, because a writer can choose.
+
+There is no entropy anywhere in this library. Salts, IVs and the seed RSA-OAEP
+pads with are arguments, so a caller that has a source of randomness can use it
+and a caller that has a test vector can pin one.
+
+## Signed strings, JWE and COSE
+
+Three ways to carry a credential that is not a JWT, each with the property that
+made it worth having.
+
+`token` is the smallest of them: a payload, an optional timestamp, and an HMAC
+over both, in one URL-safe string. A `salt` is mixed in, so a token issued for
+one purpose does not verify for another even under the same key, and `Keys`
+holds a current and a previous key so rotation does not invalidate what was
+already issued.
+
+```moonbit
+let text = @token.sign(payload, keys~, salt=b"session", at~)
+@token.verify(text, keys~, salt=b"session", max_age=86400L, now~)
+```
+
+`jwe` is RFC 7516 with the key management and content encryption named
+separately, because that is what they are: `dir` and the AES key wrapping
+algorithms put a content key on the wire, RSA-OAEP-256 puts it somewhere only
+the recipient can reach, and GCM or CBC-HMAC spends it on the payload. The
+header is the additional data of the AEAD, so an edited header does not decrypt.
+
+`cose` is the same three ideas in CBOR, for the networks where a JSON header is
+too much: COSE_Sign1, COSE_Mac0 and COSE_Encrypt0, and the CWT claim set they
+carry. `cbor` is its own package, so a program that reads a CWT does not link the
+rest.
+
+```moonbit
+let message = @cose.sign1(payload, alg=Es256, signer, kid=Some(kid))
+@cose.verify1(message[:], alg=Es256, verifier)
+
+let claims = @cose.Claims::new(iss="moonbitstack", exp=4102444800L)
+@cose.verified(@cose.signed(claims, alg=Hs256, signer)[:], alg=Hs256, verifier,
+               now=@cose.At(seconds))
+```
+
+## Policy, when a chain has to be valid for a purpose
+
+`x509.verify` answers whether a chain is trustworthy. `policy` answers a
+narrower question that some deployments also ask: whether the chain is valid for
+a particular *policy* — a statement an authority makes about what a certificate
+may be used for. It is a separate package and a separate call, so a program that
+never asks the question never links the answer.
+
+```moonbit
+let chain = @x509.verify(chain[:], roots, now~).map(fn(c) { @policy.read(c.raw) })
+@policy.policies(chain, initial=["2.23.140.1.2.1"])   // empty: not valid for it
+```
 
 ## What is checked
 
@@ -191,12 +288,29 @@ Alongside the vectors: a token whose header names another algorithm, one with
 expiry and not-before at the exact second, `iss` and `aud`, and ten shapes that
 are not tokens — all refused, each with its own reason.
 
+The new formats are measured against `openssl` rather than against themselves.
+`scripts/gen_credentials.py` builds every fixture with it — a request with an
+extensionRequest, PKCS#12 containers with and without a MAC, PBES2 keys under
+five schemes, a CRL and three OCSP responses from a CA that issued, revoked and
+never recorded a certificate, and an RSA key with a key wrapped to it — and each
+reader is tested on a file it did not write. The writers are checked the other
+way round: a CSR this library signs passes `openssl req -verify`, a container it
+builds opens under `openssl pkcs12 -info`, and an OAEP-256 key it wraps decrypts
+under `openssl pkeyutl`.
+
+CBOR is checked against RFC 8949 Appendix A item by item, and the three COSE
+structures against the layouts RFC 9052 §4.4, §5.3 and §6.3 print, byte for
+byte.
+
 ## What is not here yet
 
-Certificate signing requests, PKCS#12, CRL and OCSP responses, COSE and CWT,
-PASETO, and JWE. They are planned in that order; the tracking list
-lives with the project. Online revocation needs an HTTP client and belongs with
-the network, not here.
+PASETO, and signing with ML-DSA: the primitives both need are not in
+`mooncrypt` yet, and this library does not implement primitives of its own.
+
+Online revocation is not here on purpose — fetching a CRL or an OCSP response
+needs an HTTP client, and judging one does not. `revoke` reads and judges; the
+caller fetches. The same split applies to every package here: no clock, no
+randomness, no network.
 
 ## Install
 
