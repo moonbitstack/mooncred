@@ -47,25 +47,44 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 /* ------------------------------------------------------------------- stage */
+/* Registered so that the envelope can change size and place in one transition
+   that everything measured against it follows. */
+@property --env-w { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --env-y { syntax: "<length>"; inherits: true; initial-value: 0px; }
+
 #stage {
   /* A hundred and twelve viewport heights of width is sixty-nine of height:
      that leaves the nameplate above and the cue below a share of the window
      that shrinks and grows with it, so neither crowds the window's edge. */
-  --env-w: min(90vw, 1200px, 112vh);
+  --env-w0: min(90vw, 1200px, 112vh);
+  /* Opened, the envelope drops and gives up a quarter of its size: the letter
+     unfolds taller than the envelope and its open flap together, as a letter
+     folded in three does, and still stands in the pocket. */
+  --env-w1: min(84vh, 90vw, 1200px);
+  --env-h1: calc(var(--env-w1) / 1.618);
+  --env-y1: calc(40vh - var(--env-h1) / 2);
+  --env-w: var(--env-w0);
+  --env-y: 0px;
   --env-h: calc(var(--env-w) / 1.618);
   /* The letter is a piece of paper, so its writing is measured against the
      paper and not against the window: when the envelope gives up size, the
      type gives up the same proportion instead of overflowing the sheet. On a
      phone the sheet is the window, so it is measured against that instead. */
-  --doc-h: calc(var(--env-h) * .95);
+  --doc-h: calc(var(--env-w0) / 1.618 * .95);
   position: fixed;
   inset: 0;
   overflow: hidden;
   perspective: 1700px;
   /* the vanishing point is pinned to the envelope, not the window: it sits a
      quarter of the envelope's height below the flap's hinge, wherever that is */
-  perspective-origin: 50% calc(50% - var(--env-h) / 2 + var(--env-h) * .263);
+  perspective-origin: 50% calc(50% + var(--env-y) - var(--env-h) / 2 + var(--env-h) * .263);
   isolation: isolate;
+  transition: --env-w 1.15s .86s var(--ease-out), --env-y 1.15s .86s var(--ease-out);
+}
+@media (width > 820px) {
+  .opening #stage { --env-w: var(--env-w1); --env-y: var(--env-y1); }
+  /* the page edges sit in the right corner of the foot; the tally stops above them */
+  .tally { margin-bottom: 34px; }
 }
 
 /* the desk: an old walnut board, lit from the upper left, going dark at the
@@ -98,7 +117,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #envshadow {
   position: absolute;
   left: 50%;
-  top: 50.7%;
+  top: calc(50.7% + var(--env-y));
   width: var(--env-w);
   aspect-ratio: 1.618 / 1;
   transform: translate(-50%, -50%) rotate(-.35deg) scale(1.008);
@@ -116,7 +135,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #envelope {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: calc(50% + var(--env-y));
   width: var(--env-w);
   aspect-ratio: 1.618 / 1;
   transform: translate(-50%, -50%) rotate(-.35deg);
@@ -382,17 +401,17 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   pointer-events: none;
   /* cut at the fold's own line, so what hides the sheet is the envelope's front
      rather than an invisible edge just below it */
-  clip-path: inset(0 0 calc(50% - var(--env-h) / 2 + var(--env-h) * .028) 0);
+  clip-path: inset(0 0 calc(50% - var(--env-y) - var(--env-h) / 2 + var(--env-h) * .028) 0);
 }
 #letterclip > #letter { pointer-events: auto; }
 
 #letter {
   position: absolute;
   left: 50%;
-  bottom: calc(50% - var(--env-h) / 2 + var(--env-h) * .045);
-  width: calc(var(--env-w) * .885);
-  height: calc(var(--env-h) * .93);
-  margin-left: calc(var(--env-w) * -.4425);
+  bottom: calc(50% - var(--env-y1) - var(--env-h1) / 2 + var(--env-h1) * .045);
+  width: calc(var(--env-w1) * .885);
+  height: calc(var(--env-h1) * 1.575);
+  margin-left: calc(var(--env-w1) * -.4425);
   z-index: 20;
   transform: translate3d(0, 118%, 0) rotate(0deg);
   will-change: transform;
@@ -683,13 +702,13 @@ p:last-child { margin-bottom: 0; }
   grid-auto-flow: column;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: repeat(7, auto);
-  gap: 0 clamp(24px, 4.4vw, 64px);
+  gap: 0 clamp(20px, 2.6vw, 40px);
 }
 .reg-row {
   display: grid;
-  grid-template-columns: 5.9em minmax(0, 1fr) auto;
+  grid-template-columns: 4.7em minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: .9em;
+  gap: .6em;
   padding: .66em 0;
   border-bottom: 1px solid rgba(58, 42, 26, .14);
   font-size: clamp(8.7px, calc(var(--doc-h) * 0.0205), 14.8px);
@@ -1038,7 +1057,7 @@ p:last-child { margin-bottom: 0; }
 #pocket {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: calc(50% + var(--env-y));
   width: var(--env-w);
   aspect-ratio: 1.618 / 1;
   transform: translate(-50%, -50%) rotate(-.35deg);
@@ -1194,6 +1213,7 @@ p:last-child { margin-bottom: 0; }
   #jump { transition-duration: .001s; }
   .opening .flap3d { animation-duration: .001s; }
   .opening .flapback { animation-duration: .001s; animation-delay: 0s; }
+  #stage { transition-duration: .001s; transition-delay: 0s; }
   .halo { animation: none; }
   #hint .lbl { animation: none; }
 }
@@ -1253,7 +1273,7 @@ p:last-child { margin-bottom: 0; }
 /* A laptop with a short window: the paper is small, so its writing closes up
    a little and the foot it must keep clear of the pocket fold gets shorter. */
 @media (max-height: 700px) {
-  #stage { --doc-h: calc(var(--env-h) * .86); }
+  #stage { --doc-h: calc(var(--env-w0) / 1.618 * .86); }
   .sheet { padding-bottom: calc(var(--doc-h) * .12); }
   .reg-row { padding: .5em 0; }
 }
