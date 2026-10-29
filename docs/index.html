@@ -110,7 +110,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
     0 48px 130px 20px rgba(5, 3, 1, .46);
 }
 
-.open #envshadow { opacity: 0; }
 .opening #envelope { cursor: default; }
 
 /* ---------------------------------------------------------------- envelope */
@@ -134,9 +133,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   overflow: visible;
   transition: opacity .7s .3s ease;
 }
-/* once the letter is out there is no envelope left on the desk, only the front
-   it was standing in — the rest withdraws */
-.open .envart { opacity: 0; }
 
 /* --------------------------------------------------------- what is printed */
 /* The envelope is not blank: it carries what it is and what it speaks, set
@@ -255,6 +251,37 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 
 /* ------------------------------------------------------------------- seal */
+/* The same flap once it is past upright: turned back over the hinge, it lies
+   above the envelope with its inside up, and the letter stands in front of
+   most of it. It takes over from `.flap3d` as that one turns edge-on. */
+.flapback {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 60.2%;
+  clip-path: polygon(0 100%, 100% 100%, 50% 0);
+  transform-origin: 50% 100%;
+  transform: rotateX(-90deg);
+  opacity: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(0deg, rgba(74, 50, 26, .26) 0%, rgba(74, 50, 26, .08) 10%, transparent 34%),
+    radial-gradient(96% 130% at 50% 100%, #EBDDBF 0%, #E3D2B0 52%, #D3BE96 100%);
+}
+.flapback::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(0deg, rgba(90, 68, 44, .3) 0 1.5px, rgba(255, 252, 242, .7) 1.5px 3px);
+}
+.opening .flapback { animation: flap-back .46s .8s cubic-bezier(.25, .1, .3, 1) forwards; }
+@keyframes flap-back {
+  0%   { transform: rotateX(-90deg); opacity: 1; }
+  100% { transform: rotateX(0deg);   opacity: 1; }
+}
+
 /* The wax belongs to the flap: it is drawn inside `.flap3d`, at the flap's own
    point, so lifting the flap carries it up. It never breaks down the middle —
    it tears free of the lip left stuck to the front of the envelope. */
@@ -464,16 +491,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
    hides what it was lying on until it has actually been moved off */
 .sheet .back {
   position: absolute;
-  inset: -13px;
+  inset: 0;
   z-index: -1;
   opacity: 0;
-  border-radius: 1px;
   transition: opacity 0s linear;
-  background: linear-gradient(176deg, #FDF7E9 0%, #F6EBD6 36%, #EFE1C4 70%, #E5D2AF 100%);
-  box-shadow:
-    0 1px 1px rgba(30, 16, 7, .24),
-    0 10px 22px rgba(26, 14, 6, .30),
-    0 26px 44px rgba(20, 10, 4, .24);
+  /* the back carries a copy of the paper (see the script), deckle and all, so
+     the shadow follows the torn edge rather than a rectangle */
+  filter:
+    drop-shadow(0 1px 1px rgba(30, 16, 7, .24))
+    drop-shadow(0 10px 22px rgba(26, 14, 6, .30))
+    drop-shadow(0 26px 44px rgba(20, 10, 4, .24));
 }
 .sheet.is-up .back,
 .sheet.landing .back { opacity: 1; }
@@ -1166,6 +1193,7 @@ p:last-child { margin-bottom: 0; }
   .open #hint2 { animation: none; opacity: .85; }
   #jump { transition-duration: .001s; }
   .opening .flap3d { animation-duration: .001s; }
+  .opening .flapback { animation-duration: .001s; animation-delay: 0s; }
   .halo { animation: none; }
   #hint .lbl { animation: none; }
 }
@@ -1329,24 +1357,62 @@ p:last-child { margin-bottom: 0; }
       <feGaussianBlur stdDeviation="13"/>
     </filter>
 
-    <!-- sealing wax: a wobbled silhouette lit as a dome, plus a fine sheen -->
-    <filter id="f-wax" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="12" result="n"/>
-      <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" result="d"/>
-      <feGaussianBlur in="d" stdDeviation="9" result="dome"/>
-      <feSpecularLighting in="dome" surfaceScale="9" specularConstant=".46" specularExponent="34" lighting-color="#FFE6D6" result="s">
-        <feDistantLight azimuth="228" elevation="54"/>
+    <!-- sealing wax: the grey drawing inside is a height field (lighter is
+         higher); it is lit as a surface and tinted by the thickness of the pour -->
+    <filter id="f-wax" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+      <feColorMatrix in="SourceGraphic" type="luminanceToAlpha" result="h0"/>
+      <feGaussianBlur in="h0" stdDeviation=".8" result="h"/>
+      <feDiffuseLighting in="h" surfaceScale="18" diffuseConstant="1" lighting-color="#FFFFFF" result="diff">
+        <feDistantLight azimuth="225" elevation="42"/>
+      </feDiffuseLighting>
+      <feSpecularLighting in="h" surfaceScale="18" specularConstant="1" specularExponent="36" lighting-color="#FFE8DA" result="spec">
+        <feDistantLight azimuth="225" elevation="50"/>
       </feSpecularLighting>
-      <feComposite in="s" in2="d" operator="in" result="sc"/>
-      <feTurbulence type="fractalNoise" baseFrequency="0.2" numOctaves="3" seed="5" result="bmp"/>
-      <feGaussianBlur in="bmp" stdDeviation="1.4" result="bmp2"/>
-      <feSpecularLighting in="bmp2" surfaceScale="1.2" specularConstant=".10" specularExponent="48" lighting-color="#FFF1E8" result="s2">
-        <feDistantLight azimuth="228" elevation="62"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="thick"/>
+      <feColorMatrix in="thick" type="matrix" values="0 0 0 1 0  0 0 0 1 0  0 0 0 1 0  0 0 0 0 1" result="tg"/>
+      <feComponentTransfer in="tg" result="tint">
+        <feFuncR type="table" tableValues=".17 .32 .45 .52 .56"/>
+        <feFuncG type="table" tableValues=".03 .06 .10 .125 .14"/>
+        <feFuncB type="table" tableValues=".02 .05 .075 .095 .11"/>
+      </feComponentTransfer>
+      <feComponentTransfer in="diff" result="shade">
+        <feFuncR type="linear" slope="1.12" intercept=".24"/>
+        <feFuncG type="linear" slope="1.12" intercept=".24"/>
+        <feFuncB type="linear" slope="1.12" intercept=".24"/>
+      </feComponentTransfer>
+      <feBlend in="tint" in2="shade" mode="multiply" result="lit"/>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="gloss"/>
+      <feComposite in="gloss" in2="lit" operator="arithmetic" k2=".8" k3="1" result="wet"/>
+      <feComposite in="wet" in2="SourceAlpha" operator="in"/>
+    </filter>
+
+    <!-- gold powder brushed over the raised relief: it catches on the tops, not
+         in the hollows, and never covers evenly -->
+    <filter id="f-gilt" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceGraphic" operator="erode" radius=".25" result="top"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="21" result="dust"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="2" seed="8" result="wear"/>
+      <feColorMatrix in="dust" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.7 0 0 0 -.2" result="dm"/>
+      <feColorMatrix in="wear" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.6 0 0 0 -.5" result="wm"/>
+      <feComposite in="dm" in2="wm" operator="arithmetic" k1="1" result="cover"/>
+      <feComposite in="top" in2="cover" operator="in" result="g"/>
+      <feGaussianBlur in="top" stdDeviation=".7" result="tb"/>
+      <feSpecularLighting in="tb" surfaceScale="3" specularConstant="1.5" specularExponent="20" lighting-color="#FFF6DE" result="s">
+        <feDistantLight azimuth="225" elevation="46"/>
       </feSpecularLighting>
-      <feComposite in="s2" in2="d" operator="in" result="s2c"/>
-      <feBlend in="d" in2="sc" mode="screen" result="b1"/>
-      <feBlend in="b1" in2="s2c" mode="screen" result="b2"/>
-      <feComposite in="b2" in2="d" operator="in"/>
+      <feComposite in="s" in2="g" operator="in" result="sg"/>
+      <feComposite in="g" in2="sg" operator="arithmetic" k2="1" k3=".85"/>
+    </filter>
+
+    <linearGradient id="g-gilt" gradientUnits="userSpaceOnUse" x1="-44" y1="-44" x2="44" y2="44">
+      <stop offset="0"   stop-color="#FBE8AC"/>
+      <stop offset=".38" stop-color="#E8C474"/>
+      <stop offset=".7"  stop-color="#C69A44"/>
+      <stop offset="1"   stop-color="#91692A"/>
+    </linearGradient>
+
+    <filter id="f-wax-edge" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.6"/>
     </filter>
 
     <filter id="f-waxshadow" x="-60%" y="-60%" width="220%" height="220%">
@@ -1382,32 +1448,13 @@ p:last-child { margin-bottom: 0; }
       <stop offset="1"   stop-color="#7A5C36" stop-opacity=".15"/>
     </radialGradient>
 
-    <radialGradient id="g-wax" cx="32%" cy="24%" r="90%">
-      <stop offset="0"   stop-color="#9E3B32"/>
-      <stop offset=".36" stop-color="#8C2C24"/>
-      <stop offset=".7"  stop-color="#722019"/>
-      <stop offset=".92" stop-color="#53130F"/>
-      <stop offset="1"   stop-color="#430E0A"/>
+    <radialGradient id="g-wax-dome" cx="47%" cy="46%" r="54%">
+      <stop offset="0"   stop-color="#A3A3A3"/>
+      <stop offset=".55" stop-color="#9E9E9E"/>
+      <stop offset=".8"  stop-color="#8C8C8C"/>
+      <stop offset=".93" stop-color="#666666"/>
+      <stop offset="1"   stop-color="#383838"/>
     </radialGradient>
-
-    <radialGradient id="g-wax-face" cx="36%" cy="30%" r="88%">
-      <stop offset="0"   stop-color="#8E2F26"/>
-      <stop offset=".55" stop-color="#86291F"/>
-      <stop offset="1"   stop-color="#631A14"/>
-    </radialGradient>
-
-    <linearGradient id="g-rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0"   stop-color="#FFDCC8" stop-opacity=".55"/>
-      <stop offset=".35" stop-color="#FFD2BC" stop-opacity=".10"/>
-      <stop offset=".62" stop-color="#2A0604" stop-opacity=".12"/>
-      <stop offset="1"   stop-color="#240504" stop-opacity=".55"/>
-    </linearGradient>
-
-    <linearGradient id="g-deboss" x1="0" y1="0" x2=".85" y2="1">
-      <stop offset="0"   stop-color="#320A07"/>
-      <stop offset=".5"  stop-color="#4B110C"/>
-      <stop offset="1"   stop-color="#7E2419"/>
-    </linearGradient>
 
     <mask id="m-crescent">
       <rect x="-90" y="-90" width="180" height="180" fill="#000"/>
@@ -1426,6 +1473,12 @@ p:last-child { margin-bottom: 0; }
     <mask id="m-wax-bot" maskUnits="userSpaceOnUse" x="-90" y="-90" width="180" height="180">
       <rect x="-90" y="-90" width="180" height="180" fill="#000"/>
       <path fill="#fff" d="M-90 44.2 L-45 44.2 L-40 41.2 L-34 46.2 L-27 39.2 L-14 36.2 L-8 43.2 L1 38.2 L7 50.2 L13 40.2 L26 37.2 L33 43.2 L38 39.2 L45 45.2 L90 45.2 L90 90 L-90 90 Z"/>
+    </mask>
+    <mask id="m-shade-top" maskUnits="userSpaceOnUse" x="-130" y="-130" width="260" height="260">
+      <rect x="-130" y="-130" width="260" height="175.6" fill="#fff"/>
+    </mask>
+    <mask id="m-shade-bot" maskUnits="userSpaceOnUse" x="-130" y="-130" width="260" height="260">
+      <rect x="-130" y="45.6" width="260" height="84.4" fill="#fff"/>
     </mask>
 
     <clipPath id="cp-box" clipPathUnits="objectBoundingBox"><rect width="1" height="1"/></clipPath>
@@ -1517,6 +1570,8 @@ p:last-child { margin-bottom: 0; }
 
     <!-- the lip of wax that stays on the envelope when the flap comes away -->
     <div id="lip" aria-hidden="true"></div>
+
+    <div class="flapback" aria-hidden="true"><div class="flap-tex"></div></div>
 
     <div class="flap3d">
       <div class="flap-lift">
@@ -1861,28 +1916,44 @@ p:last-child { margin-bottom: 0; }
   var FRAC = "M-45 47 L-40 44 L-34 49 L-27 42 L-14 39 L-8 46 L1 41 L7 53 L13 43 L26 40 L33 46 L38 42 L45 48";
   var FRAC_LIP = "M-45 49.8 L-40 46.8 L-34 51.8 L-27 44.8 L-14 41.8 L-8 48.8 L1 43.8 L7 55.8 L13 45.8 L26 42.8 L33 48.8 L38 44.8 L45 50.8";
 
+  var BLOB = "M62.8 0.0 Q62.8 0.0 62.7 2.7 Q62.6 5.5 61.9 8.1 Q61.2 10.8 59.9 13.3 Q58.7 15.7 57.3 18.0 Q55.9 20.4 54.7 22.6 Q53.4 24.9 52.3 27.2 Q51.1 29.5 49.9 31.8 Q48.7 34.1 47.1 36.2 Q45.6 38.2 43.7 40.0 Q41.8 41.8 39.7 43.3 Q37.6 44.9 35.5 46.3 Q33.4 47.7 31.3 49.2 Q29.2 50.7 27.1 52.0 Q24.9 53.4 22.6 54.5 Q20.2 55.5 17.7 56.0 Q15.2 56.6 12.6 56.6 Q10.0 56.7 7.5 56.7 Q4.9 56.6 2.5 56.6 Q0.0 56.7 -2.5 57.0 Q-5.0 57.2 -7.6 57.5 Q-10.2 57.7 -12.8 57.7 Q-15.4 57.6 -18.0 57.1 Q-20.6 56.6 -23.1 55.8 Q-25.6 55.0 -28.2 54.0 Q-30.7 53.1 -33.2 52.1 Q-35.7 51.0 -38.2 49.8 Q-40.7 48.5 -42.9 46.8 Q-45.1 45.1 -46.8 42.9 Q-48.5 40.7 -49.6 38.1 Q-50.8 35.5 -51.5 32.9 Q-52.2 30.2 -52.8 27.5 Q-53.5 24.9 -54.1 22.4 Q-54.7 19.9 -55.3 17.5 Q-55.9 15.0 -56.2 12.5 Q-56.6 10.0 -56.6 7.5 Q-56.6 4.9 -56.4 2.5 Q-56.2 0.0 -56.0 -2.4 Q-55.9 -4.9 -56.0 -7.4 Q-56.0 -9.9 -56.1 -12.5 Q-56.2 -15.1 -56.1 -17.7 Q-55.9 -20.3 -55.2 -22.9 Q-54.4 -25.4 -53.2 -27.7 Q-51.9 -30.0 -50.4 -32.1 Q-48.8 -34.2 -47.2 -36.2 Q-45.6 -38.3 -44.0 -40.3 Q-42.3 -42.3 -40.6 -44.3 Q-38.9 -46.3 -36.8 -48.0 Q-34.8 -49.7 -32.5 -51.1 Q-30.3 -52.4 -27.8 -53.4 Q-25.4 -54.4 -22.9 -55.4 Q-20.5 -56.3 -18.1 -57.4 Q-15.6 -58.4 -13.2 -59.4 Q-10.7 -60.5 -8.0 -61.2 Q-5.4 -62.0 -2.7 -62.1 Q-0.0 -62.3 2.7 -61.8 Q5.4 -61.3 7.9 -60.4 Q10.5 -59.5 12.9 -58.4 Q15.4 -57.3 17.7 -56.3 Q20.1 -55.2 22.4 -54.0 Q24.6 -52.8 26.7 -51.4 Q28.8 -50.0 30.7 -48.2 Q32.5 -46.5 34.2 -44.5 Q35.8 -42.6 37.4 -40.8 Q39.0 -39.0 40.8 -37.4 Q42.6 -35.8 44.7 -34.2 Q46.7 -32.7 48.8 -31.0 Q50.8 -29.3 52.6 -27.4 Q54.4 -25.4 55.7 -23.1 Q57.1 -20.8 58.1 -18.3 Q59.0 -15.8 59.8 -13.3 Q60.6 -10.7 61.3 -8.1 Q62.0 -5.4 62.4 -2.7Z";
+  var SPREAD = "M66.7 0.0 Q66.7 0.0 66.6 2.9 Q66.5 5.8 65.6 8.6 Q64.8 11.4 63.3 14.0 Q61.9 16.6 60.3 19.0 Q58.8 21.4 57.4 23.8 Q56.0 26.1 54.8 28.5 Q53.6 31.0 52.3 33.4 Q51.1 35.8 49.5 38.0 Q47.9 40.2 45.9 42.0 Q43.9 43.9 41.6 45.4 Q39.4 47.0 37.2 48.5 Q35.0 49.9 32.8 51.5 Q30.6 53.0 28.4 54.5 Q26.1 56.0 23.7 57.1 Q21.2 58.2 18.5 58.7 Q15.9 59.2 13.2 59.2 Q10.4 59.2 7.8 59.1 Q5.2 58.9 2.6 59.0 Q0.0 59.0 -2.6 59.4 Q-5.2 59.7 -7.9 60.1 Q-10.7 60.5 -13.4 60.5 Q-16.2 60.5 -19.0 60.1 Q-21.7 59.6 -24.4 58.8 Q-27.0 58.0 -29.7 57.0 Q-32.4 56.1 -35.1 55.1 Q-37.9 54.1 -40.6 52.8 Q-43.3 51.6 -45.6 49.8 Q-48.0 48.0 -49.8 45.6 Q-51.6 43.3 -52.6 40.4 Q-53.7 37.6 -54.4 34.7 Q-55.0 31.8 -55.5 28.9 Q-56.1 26.1 -56.7 23.5 Q-57.3 20.8 -57.8 18.3 Q-58.4 15.7 -58.7 13.0 Q-59.0 10.4 -58.9 7.8 Q-58.9 5.2 -58.6 2.6 Q-58.3 0.0 -58.2 -2.5 Q-58.0 -5.1 -58.2 -7.7 Q-58.3 -10.3 -58.6 -13.0 Q-58.8 -15.8 -58.8 -18.6 Q-58.7 -21.4 -58.0 -24.0 Q-57.3 -26.7 -56.0 -29.1 Q-54.6 -31.5 -53.0 -33.7 Q-51.3 -35.9 -49.6 -38.1 Q-47.9 -40.2 -46.2 -42.4 Q-44.5 -44.5 -42.7 -46.7 Q-40.9 -48.8 -38.8 -50.6 Q-36.7 -52.4 -34.3 -53.8 Q-31.9 -55.2 -29.3 -56.3 Q-26.7 -57.3 -24.1 -58.3 Q-21.6 -59.2 -19.0 -60.4 Q-16.5 -61.5 -13.9 -62.7 Q-11.3 -63.9 -8.5 -64.8 Q-5.7 -65.6 -2.9 -65.8 Q-0.0 -66.0 2.8 -65.4 Q5.7 -64.8 8.4 -63.7 Q11.0 -62.6 13.6 -61.4 Q16.1 -60.2 18.6 -59.0 Q21.0 -57.8 23.4 -56.6 Q25.8 -55.3 28.0 -53.7 Q30.1 -52.2 32.0 -50.3 Q33.8 -48.3 35.5 -46.3 Q37.1 -44.2 38.7 -42.3 Q40.4 -40.4 42.3 -38.7 Q44.2 -37.1 46.4 -35.6 Q48.7 -34.1 51.0 -32.4 Q53.3 -30.7 55.2 -28.7 Q57.2 -26.7 58.7 -24.3 Q60.2 -21.9 61.3 -19.3 Q62.3 -16.7 63.2 -14.0 Q64.1 -11.3 64.9 -8.5 Q65.7 -5.7 66.2 -2.9Z";
+
+  /* Grey is height: the pour falls off at its edge, the die squeezes a ridge up
+     around a face pressed flat, and the crescent and the legend stand up from
+     the face, where the gold powder catches. */
+  var LEGEND = '<textPath href="#p-legend" startOffset="50%">SEALED AND KEPT</textPath>';
+  function legend(fill) {
+    return '<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="7.6" ' +
+             'font-weight="700" letter-spacing=".9" text-anchor="middle" fill="' + fill + '">' + LEGEND + '</text>';
+  }
+
   function waxBody() {
-    return '<g filter="url(#f-wax)">' +
-        '<circle r="62" fill="url(#g-wax)"/>' +
-        '<circle r="62" fill="none" stroke="url(#g-rim)" stroke-width="7"/>' +
-        '<circle r="43.5" fill="url(#g-wax-face)"/>' +
-        '<circle r="43.5" fill="none" stroke="#380A07" stroke-opacity=".62" stroke-width="2.2"/>' +
-        '<circle r="45.4" fill="none" stroke="#FFD9C6" stroke-opacity=".15" stroke-width="1.3" transform="translate(-.7 -.9)"/>' +
-        '<circle r="43.5" fill="none" stroke="#F2BCA8" stroke-opacity=".22" stroke-width="1" transform="translate(-.55 -.65)"/>' +
+    return '<path d="' + SPREAD + '" fill="#6E1A13" opacity=".26" filter="url(#f-wax-edge)"/>' +
+      '<g filter="url(#f-wax)">' +
+        '<path d="' + BLOB + '" fill="url(#g-wax-dome)"/>' +
+        '<circle r="46.5" fill="none" stroke="#B0B0B0" stroke-width="12"/>' +
+        '<circle r="46.5" fill="none" stroke="#C4C4C4" stroke-width="4.4"/>' +
+        '<circle r="42" fill="#808080"/>' +
+        '<circle r="30.6" fill="none" stroke="#6E6E6E" stroke-width="1"/>' +
+        '<g mask="url(#m-crescent)"><rect x="-80" y="-80" width="160" height="160" fill="#ACACAC"/></g>' +
+        legend("#A4A4A4") +
       '</g>' +
-      '<g mask="url(#m-crescent)">' +
-        '<rect x="-80" y="-80" width="160" height="160" fill="url(#g-deboss)"/>' +
-      '</g>' +
-      '<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="6.9" ' +
-            'letter-spacing="1" text-anchor="middle" fill="#F4D6C6" opacity=".72">' +
-        '<textPath href="#p-legend" startOffset="50%">SEALED AND KEPT</textPath>' +
-      '</text>';
+      '<g filter="url(#f-gilt)">' +
+        '<circle r="46.5" fill="none" stroke="url(#g-gilt)" stroke-width="2.6"/>' +
+        '<g mask="url(#m-crescent)"><rect x="-80" y="-80" width="160" height="160" fill="url(#g-gilt)"/></g>' +
+        legend("url(#g-gilt)") +
+      '</g>';
+  }
+
+  function waxShadow(mask) {
+    return '<g mask="url(#' + mask + ')"><path d="' + BLOB + '" fill="#180604" opacity=".6" filter="url(#f-waxshadow)"/></g>';
   }
 
   document.getElementById("sealwax").innerHTML =
     '<svg viewBox="-80 -80 160 160">' +
+      waxShadow("m-shade-top") +
       '<g mask="url(#m-wax-top)">' +
-        '<circle r="64" fill="#180604" opacity=".55" filter="url(#f-waxshadow)"/>' +
         waxBody() +
         '<path class="frac-cut" d="' + FRAC + '" fill="none" stroke="#2C0704" stroke-opacity=".42" stroke-width="2.6" stroke-linejoin="round"/>' +
       '</g>' +
@@ -1892,11 +1963,21 @@ p:last-child { margin-bottom: 0; }
      face catching the lamp along its top edge */
   document.getElementById("lip").innerHTML =
     '<svg viewBox="-80 -80 160 160">' +
+      waxShadow("m-shade-bot") +
       '<g mask="url(#m-wax-bot)">' +
         waxBody() +
         '<path class="frac-face" d="' + FRAC_LIP + '" fill="none" stroke="#B26454" stroke-opacity=".42" stroke-width="2.4" stroke-linejoin="round"/>' +
       '</g>' +
     '</svg>';
+
+  /* A sheet in flight is the same paper as the stack it left: texture, lamp
+     light and both creases go with it. */
+  var paper = [".sheetpaper", ".paperlight", ".crease.a", ".crease.b"].map(function (s) {
+    return letter.querySelector(s);
+  });
+  Array.prototype.forEach.call(letter.querySelectorAll(".sheet .back"), function (back) {
+    paper.forEach(function (part) { back.appendChild(part.cloneNode(true)); });
+  });
 
   /* --------------------------------------------------------------- sheets */
   /* A stack on one paper: the sheet you are reading *is* the paper, so it has
