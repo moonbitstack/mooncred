@@ -360,6 +360,9 @@ def gen_revocation(work):
             values["ocsp_expired"] = stale.read_bytes().hex()
     values["stray"] = read(stray).strip()
     write_vectors(SRC / "revoke" / "files_wbtest.mbt", values)
+    # The guide reads the same chain and list, so its pages and the tests agree.
+    shown = ("authority", "good", "revoked", "crl")
+    write_vectors(SRC / "examples" / "guide" / "files.mbt", {k: values[k] for k in shown})
 
 
 def main():

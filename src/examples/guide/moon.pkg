@@ -1,0 +1,22 @@
+// The program behind docs/guide.html: each listing on the page is cut from
+// main.mbt and each transcript under it is what this prints. Run
+// `python scripts/guide.py` after changing either.
+pkgtype(kind: "executable")
+
+import {
+  "moonbitstack/mooncred/cose",
+  "moonbitstack/mooncred/csr",
+  "moonbitstack/mooncred/jwe",
+  "moonbitstack/mooncred/jwk",
+  "moonbitstack/mooncred/jwt",
+  "moonbitstack/mooncred/pkcs12",
+  "moonbitstack/mooncred/revoke",
+  "moonbitstack/mooncred/roots",
+  "moonbitstack/mooncred/token",
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/sign/ed25519",
+  "moonbitstack/moonbase/base16",
+}

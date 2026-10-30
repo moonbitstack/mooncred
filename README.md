@@ -1,9 +1,25 @@
-# mooncred
+<div align="center">
 
-Credential formats for MoonBit: tokens, certificates, the requests that ask for
-them, the containers they travel in, and the ways they are judged.
+<h1>mooncred</h1>
 
-One rule runs through all of it — the algorithm a message claims is never the
+<p><b>Credential formats for MoonBit.</b><br>
+Tokens, certificates, the requests that ask for them, the containers they travel in,<br>
+and the ways they are judged.</p>
+
+<p>
+<a href="https://moonbitstack.github.io/mooncred/">Home</a> ·
+<a href="https://moonbitstack.github.io/mooncred/guide.html">Guide</a> ·
+<a href="https://moonbitstack.github.io/mooncred/api.html">API</a> ·
+<a href="https://mooncakes.io/docs/moonbitstack/mooncred">mooncakes</a>
+</p>
+
+</div>
+
+```bash
+moon add moonbitstack/mooncred
+```
+
+One rule runs through all of it: the algorithm a message claims is never the
 algorithm a verifier uses. Every reader here takes the algorithm as an argument,
 compares it with what the message says, and refuses the message when the two
 disagree.
@@ -17,8 +33,8 @@ let key = @jwt.mac(fn() {
 let token = @jwt.sign(claims, HS256, key)
 
 // The algorithm is the caller's, not the token's.
-let got = @jwt.verify(token[:], HS256, key, now=now_seconds,
-                      issuer=Some("moonbitstack"), audience=Some("moonapi"))
+let got = @jwt.verify(token[:], HS256, key, now=At(seconds),
+                      issuer="moonbitstack", audience=["moonapi"])
 ```
 
 ## Packages
@@ -82,16 +98,16 @@ Both of those are parameters too:
 
 ```moonbit
 // A policy for the deployment, assembled once.
-let ours = @jwt.Policy::new(issuer=Some("moonbitstack"), audience=["moonapi"])
+let ours = @jwt.Policy::new(issuer="moonbitstack", audience=["moonapi"])
 // The same thing written as a record update.
-let ours : @jwt.Policy = { ..@jwt.policy, issuer: Some("moonbitstack") }
+let same : @jwt.Policy = { ..@jwt.policy, issuer: Some("moonbitstack"), audience: ["moonapi"] }
 
 // Used as it is, and used with one thing changed for this call.
-@jwt.verify(token[:], HS256, key, now=At(seconds), policy=ours)
-@jwt.verify(token[:], HS256, key, now=At(seconds), policy=ours, leeway=60L)
+let a = @jwt.verify(token[:], HS256, key, now=At(seconds), policy=ours)
+let b = @jwt.verify(token[:], HS256, key, now=At(seconds), policy=ours, leeway=60)
 
 // Reading a token without asking whether it has expired.
-@jwt.verify(token[:], HS256, key, now=Ignored)
+let c = @jwt.verify(token[:], HS256, key, now=Ignored)
 ```
 
 `now` is not configuration but data, so it is always an argument and never a
@@ -115,9 +131,9 @@ building a key means choosing an implementation, and the program is what knows
 which ones it wants. The bridge is two lines:
 
 ```moonbit
-match key.material() {
+let verifier = match key.material() {
   Okp(x~, ..) => @ed25519.PublicKey::new(x[:])
-  _ => …
+  _ => abort("not an Ed25519 key")
 }
 ```
 
@@ -127,8 +143,8 @@ A setting whose preset is unset is written plainly, because there is nothing to
 clear:
 
 ```moonbit
-@jwt.Policy::new(issuer="https://issuer.example", leeway=30)
-@jwt.verify(token[:], HS256, key, now=At(seconds), issuer="https://issuer.example")
+let policy = @jwt.Policy::new(issuer="https://issuer.example", leeway=30)
+let got = @jwt.verify(token[:], HS256, key, now=At(seconds), issuer="https://issuer.example")
 ```
 
 A setting whose preset is a value takes an option, because clearing it is one of
@@ -136,9 +152,9 @@ the things a caller needs to say. `sign` writes `typ: "JWT"` unless told
 otherwise, and `None` is how a caller asks for no `typ` header at all:
 
 ```moonbit
-@jwt.sign(claims, HS256, key)                      // typ: "JWT"
-@jwt.sign(claims, HS256, key, typ=Some("at+jwt"))  // typ: "at+jwt"
-@jwt.sign(claims, HS256, key, typ=None)            // no typ header
+let plain = @jwt.sign(claims, HS256, key)                      // typ: "JWT"
+let access = @jwt.sign(claims, HS256, key, typ=Some("at+jwt"))  // typ: "at+jwt"
+let bare = @jwt.sign(claims, HS256, key, typ=None)              // no typ header
 ```
 
 The shape follows from the preset, never from the label, so the same rule reads
@@ -154,8 +170,8 @@ let path = @x509.verify(chain[:], roots, now~, host="example.com")
 
 // Or one certificate on its own.
 let cert = @x509.parse(der[:])
-cert.matches("a.example.com")     // subjectAltName names and addresses
-cert.signed_by(issuer.spki)       // raises for an algorithm it does not check
+let serves = cert.matches("a.example.com")    // subjectAltName names and addresses
+let signed = cert.signed_by(issuer.spki)      // raises for an algorithm it does not check
 ```
 
 `verify` takes the leaf and whatever intermediates the peer sent, in any order,
@@ -184,7 +200,8 @@ The key a server signs with reads from any file `openssl` writes:
 
 ```moonbit
 let key = @x509.PrivateKey::pem(text)     // PRIVATE KEY, EC PRIVATE KEY, RSA PRIVATE KEY
-key.public() == cert.spki.key()           // whether the two belong together
+let spki = @x509.Spki::read(@x509.Spki::encode(key.public()))
+let pairs = spki == cert.spki             // whether the two belong together
 ```
 
 PKCS#8, SEC1 and PKCS#1 are told apart by their structure, so `PrivateKey::read`
@@ -201,20 +218,21 @@ behalf.
 
 ```moonbit
 // A request to be signed, and the same request read back.
-let request = @csr.Request::self_signed(key, subject="csr.example.com", exts~)
-request.verified()                       // the signature, over the octets that arrived
-request.asks_for("1.2.3.4")              // the extensionRequest attributes
+let pem = @csr.self_signed_pem(key, subject=@x509.common_name("csr.example.com"))
+let request = @csr.Request::pem(pem)
+let sound = request.verified()              // the signature, over the octets that arrived
+let mine = request.asks_for(key.public())   // whether it asks for this key
 
 // A key at rest, and the container that holds it.
-let sealed = private_key.encrypt(passphrase~, salt~, iv~, scheme=Aes256Cbc)
-@x509.PrivateKey::read_encrypted(sealed[:], passphrase~)
-let pfx = @pkcs12.build(certs~, key~, passphrase~, salt~, iv~, mac_salt~)
-@pkcs12.parse(pfx[:]).contents(passphrase~)
+let locked = key.encrypt(passphrase~, salt~, iv~, scheme=Aes256Cbc)
+let back = @x509.PrivateKey::read_encrypted(locked[:], passphrase~)
+let pfx = @pkcs12.build(certs~, key=Some(key.pkcs8()), passphrase~, salt~, iv~, mac_salt~)
+let inside = @pkcs12.parse(pfx[:]).contents(passphrase~)
 
 // Revocation, without a network in the library.
 let list = @revoke.Crl::pem(text)
-list.fresh(now~)                         // thisUpdate and nextUpdate, against the caller's clock
-list.status(cert)                        // Good, Revoked(reason), or Unknown
+let fresh = list.fresh(now)                 // thisUpdate and nextUpdate, against the caller's clock
+let status = list.status(cert)              // Good, Revoked(entry), or Unknown
 ```
 
 `pbe` and `pkcs12` carry the two derivations openssl writes without being asked:
@@ -238,8 +256,8 @@ holds a current and a previous key so rotation does not invalidate what was
 already issued.
 
 ```moonbit
-let text = @token.sign(payload, keys~, salt=b"session", at~)
-@token.verify(text, keys~, salt=b"session", max_age=86400L, now~)
+let text = @token.sign(payload, keys~, salt="session", at=Some(now))
+let value = @token.verify(text[:], keys~, salt="session", max_age=Some(86400L), now~)
 ```
 
 `jwe` is RFC 7516 with the key management and content encryption named
@@ -255,11 +273,11 @@ rest.
 
 ```moonbit
 let message = @cose.sign1(payload, alg=Es256, signer, kid=Some(kid))
-@cose.verify1(message[:], alg=Es256, verifier)
+let opened = @cose.verify1(message[:], alg=Es256, verifier)
 
 let claims = @cose.Claims::new(iss="moonbitstack", exp=4102444800L)
-@cose.verified(@cose.signed(claims, alg=Hs256, signer)[:], alg=Hs256, verifier,
-               now=@cose.At(seconds))
+let cwt = @cose.signed(claims, alg=Hs256, mac)
+let checked = @cose.verified(cwt[:], alg=Hs256, mac, now=At(seconds))
 ```
 
 ## Policy, when a chain has to be valid for a purpose
@@ -271,8 +289,12 @@ may be used for. It is a separate package and a separate call, so a program that
 never asks the question never links the answer.
 
 ```moonbit
-let chain = @x509.verify(chain[:], roots, now~).map(fn(c) { @policy.read(c.raw) })
-@policy.policies(chain, initial=["2.23.140.1.2.1"])   // empty: not valid for it
+let path = @x509.verify(chain[:], roots, now~)
+let certs = []
+for cert in path {
+  certs.push(@policy.read(cert.raw))
+}
+let held = @policy.policies(certs, initial=["2.23.140.1.2.1"])   // empty: not valid for it
 ```
 
 ## What is checked
@@ -311,12 +333,6 @@ Online revocation is not here on purpose — fetching a CRL or an OCSP response
 needs an HTTP client, and judging one does not. `revoke` reads and judges; the
 caller fetches. The same split applies to every package here: no clock, no
 randomness, no network.
-
-## Install
-
-```bash
-moon add moonbitstack/mooncred
-```
 
 ## Licence
 

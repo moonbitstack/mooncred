@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>mooncred — the guide</title>
+<meta name="description" content="mooncred step by step: tokens, keys, certificates, requests, containers, revocation, JWE and COSE, each with what it prints.">
+<meta name="theme-color" content="#171110">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14.2' fill='%238E2C21'/%3E%3Ccircle cx='16' cy='16' r='14.2' fill='none' stroke='%23541610' stroke-width='1.6' opacity='.7'/%3E%3Cpath d='M22 9.4A8.4 8.4 0 1 0 22 22.6 6.9 6.9 0 0 1 22 9.4Z' fill='%23F1E2C6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/letter.css">
+<script type="module" src="assets/scrollbar.js"></script>
+</head>
+<body>
+
+<header class="bar">
+  <a class="home" href="./">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#8C2A21"/><circle cx="20" cy="20" r="15.4" fill="none" stroke="#F0DCC8" stroke-opacity=".45" stroke-width=".9"/><path d="M24.4 11.6 a9.4 9.4 0 1 1 .9 14.6 a7.2 7.2 0 0 0 -.9-14.6" fill="#EFDCC4"/></svg>
+    <span>mooncred</span>
+  </a>
+  <nav aria-label="Site">
+    <a href="./">letter</a>
+    <a href="guide.html" aria-current="page">guide</a>
+    <a href="api.html">reference</a>
+    <a class="gh" href="https://github.com/moonbitstack/mooncred" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
+  </nav>
+</header>
+
+<main class="stack">
+
+  <article class="sheet" id="start">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>the guide</span><span class="folio">i</span></header>
+    <h1>The guide, <em>in order.</em></h1>
+    <p>Each sheet adds one thing to the last: a token, the ways it is refused, the settings behind a check, keys from JSON, then certificates and the files around them. Every listing is cut from one program, <code>src/examples/guide</code>, and every box under a listing is what that program prints.</p>
+    <div class="band"><code><span class="prompt">$</span> moon add moonbitstack/mooncred</code></div>
+    <p class="small">The keys come from mooncrypt and are passed in; mooncred chooses no algorithm and draws no randomness of its own.</p>
+    <nav class="idx" aria-label="In this guide">
+      <a href="#sign"><span class="n">ii</span><span class="t">A token, signed and checked</span><span class="d">jwt</span></a>
+      <a href="#refuse"><span class="n">iii</span><span class="t">What a verifier refuses</span><span class="d">jwt</span></a>
+      <a href="#policy"><span class="n">iv</span><span class="t">Settings, in three layers</span><span class="d">jwt</span></a>
+      <a href="#jwk"><span class="n">v</span><span class="t">Keys from a JWK set</span><span class="d">jwk</span></a>
+      <a href="#token"><span class="n">vi</span><span class="t">A signed string for a cookie</span><span class="d">token</span></a>
+      <a href="#chain"><span class="n">vii</span><span class="t">A certificate chain</span><span class="d">x509</span></a>
+      <a href="#issue"><span class="n">viii</span><span class="t">A certificate and a request</span><span class="d">x509 · csr</span></a>
+      <a href="#keys"><span class="n">ix</span><span class="t">Keys at rest, and containers</span><span class="d">pbe · pkcs12</span></a>
+      <a href="#revoke"><span class="n">x</span><span class="t">Revocation</span><span class="d">revoke</span></a>
+      <a href="#jwe"><span class="n">xi</span><span class="t">JWE and COSE</span><span class="d">jwe · cose</span></a>
+      <a href="#roots"><span class="n">xii</span><span class="t">Trust anchors</span><span class="d">roots</span></a>
+    </nav>
+    <footer class="foot"><span>thirteen packages</span><span class="dot"></span><span>one program</span><a class="next" href="#sign">next · a token</a></footer>
+  </article>
+
+  <article class="sheet" id="sign">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>jwt</span><span class="folio">ii</span></header>
+    <h2>A token, signed and checked.</h2>
+    <p>The key is anything that signs. <code>@jwt.mac</code> turns a MAC into a signer and a verifier at once, so one HMAC secret both issues and checks. <code>verify</code> is told the algorithm, the time and what the claims must say; the token is not asked.</p>
+    <pre class="listing"><code><!-- code:sign -->let secret = b"a shared secret nobody else has"
+let key = @jwt.mac(fn() {
+  @hmac.Hmac::new(secret[:], fn() { @sha2.Hasher::new() })
+})
+let claims : Map[String, Json] = {
+  "sub": "heke1228",
+  "iss": "moonbitstack",
+  "aud": "moonapi",
+  "exp": 1793235600,
+}
+let token = @jwt.sign(claims, HS256, key)
+println(token)
+let got = @jwt.verify(
+  token[:],
+  HS256,
+  key,
+  now=At(now),
+  issuer="moonbitstack",
+  audience=["moonapi"],
+)
+if got.get("sub") is Some(String(sub)) {
+  println("subject: \{sub}")
+}<!-- /code:sign --></code></pre>
+    <pre class="out"><!-- run:sign -->eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoZWtlMTIyOCIsImlzcyI6Im1vb25iaXRzdGFjayIsImF1ZCI6Im1vb25hcGkiLCJleHAiOjE3OTMyMzU2MDB9.XEBAfpv40yTEYS1th0JS4017XL1wOqY2zE9u-t3B3Cc
+subject: heke1228<!-- /run:sign --></pre>
+    <footer class="foot"><span>RFC 7515 · 7519</span><a class="next" href="#refuse">next · refusals</a></footer>
+  </article>
+
+  <article class="sheet" id="refuse">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>jwt</span><span class="folio">iii</span></header>
+    <h2>What a verifier refuses.</h2>
+    <p>A token naming another algorithm than the one the caller expects is refused before its signature is looked at; that closes both <code>alg: none</code> and the HMAC-with-a-public-key confusion. Time is checked unless the caller switches the clock off, and saying so is the only way to read a lapsed token.</p>
+    <pre class="listing"><code><!-- code:refuse --><span class="c">// The same bytes, offered as another algorithm.</span>
+try @jwt.verify(token[:], HS384, key, now=At(now)) |&gt; ignore catch {
+  Algorithm(want~, got~) =&gt; println("refused: \{got} is not \{want}")
+  _ =&gt; println("refused")
+}
+<span class="c">// Two hours on, the token has lapsed.</span>
+try @jwt.verify(token[:], HS256, key, now=At(now + 7200)) |&gt; ignore catch {
+  Expired(at~) =&gt; println("refused: expired at \{at.to_int64()}")
+  _ =&gt; println("refused")
+}
+<span class="c">// Read anyway, with the clock switched off on purpose.</span>
+let old = @jwt.verify(token[:], HS256, key, now=Ignored)
+println("read with no clock: \{old.length()} claims")<!-- /code:refuse --></code></pre>
+    <pre class="out"><!-- run:refuse -->refused: HS256 is not HS384
+refused: expired at 1793235600
+read with no clock: 4 claims<!-- /run:refuse --></pre>
+    <footer class="foot"><span>Refused · Algorithm · Expired</span><a class="next" href="#policy">next · settings</a></footer>
+  </article>
+
+  <article class="sheet" id="policy">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>jwt</span><span class="folio">iv</span></header>
+    <h2>Settings, in three layers.</h2>
+    <p>Everything a verification checks is a setting, given in a <code>Policy</code> assembled once or as an argument to one call. The more specific layer wins:</p>
+    <p class="layers"><span>@jwt.policy</span><i>&lt;</i><span>the policy passed</span><i>&lt;</i><span>the arguments passed</span></p>
+    <p><code>wins=Base</code> turns the last two around, so the record decides. <code>clash</code> says what happens when one setting arrives twice: <code>Ignore</code> merges quietly, <code>Panic</code> stops, <code>Handle(f)</code> hands both to your function. <code>now</code> is data, not a setting, so it is always an argument.</p>
+    <pre class="listing"><code><!-- code:policy --><span class="c">// Assembled once for a deployment.</span>
+let ours = @jwt.Policy::new(
+  issuer="moonbitstack",
+  audience=["moonapi"],
+  leeway=30,
+)
+<span class="c">// The same record, written as an update of the preset.</span>
+let same : @jwt.Policy = {
+  ..@jwt.policy,
+  issuer: Some("moonbitstack"),
+  audience: ["moonapi"],
+  leeway: 30,
+}
+println("same policy: \{ours == same}")
+<span class="c">// A hundred seconds past `exp`: outside the policy's leeway.</span>
+let late : @jwt.Clock = At(1793235700L)
+<span class="c">// This one call allows two minutes; the argument beats the record.</span>
+let got = @jwt.verify(token[:], HS256, key, now=late, policy=ours, leeway=120)
+println("accepted with leeway 120: \{got.length()} claims")
+<span class="c">// `wins=Base` turns that around, and the record's 30 s stands.</span>
+try
+  @jwt.verify(
+    token[:],
+    HS256,
+    key,
+    now=late,
+    policy=ours,
+    leeway=120,
+    wins=Base,
+  )
+  |&gt; ignore
+catch {
+  Expired(..) =&gt; println("refused with wins=Base: the policy decides")
+  _ =&gt; println("refused")
+}<!-- /code:policy --></code></pre>
+    <pre class="out"><!-- run:policy -->same policy: true
+accepted with leeway 120: 4 claims
+refused with wins=Base: the policy decides<!-- /run:policy --></pre>
+    <footer class="foot"><span>Policy · Wins · OnClash</span><a class="next" href="#jwk">next · keys</a></footer>
+  </article>
+
+  <article class="sheet" id="jwk">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>jwk</span><span class="folio">v</span></header>
+    <h2>Keys from a JWK set.</h2>
+    <p><code>jwk</code> reads key material as bytes, not as keys: building a key means choosing an implementation, and the program is what knows which one it links. <code>pick</code> finds the key for an algorithm and an id; a verifier reads <code>kid</code> from the unverified header to know which one to fetch.</p>
+    <pre class="listing"><code><!-- code:jwk -->let set = @jwk.Set::parse(
+  (
+    #|{"keys":[{"kty":"OKP","crv":"Ed25519","kid":"2026-09","alg":"EdDSA",
+    #|"d":"nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+    #|"x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}]}
+  ),
+)
+guard set.pick(alg="EdDSA", id="2026-09") is Some(jwk) else { return }
+guard jwk.material() is Okp(x~, secret=Some(seed), ..) else { return }
+let signer = @ed25519.PrivateKey::new(seed[:])
+let token = @jwt.sign({ "sub": "heke1228" }, EdDSA, signer, extra={
+  "kid": "2026-09",
+})
+<span class="c">// A verifier reads `kid` first, fetches that key, then verifies.</span>
+guard @jwt.header(token[:]).get("kid") is Some(String(kid)) else { return }
+guard set.by_id(kid) is Some(found) else { return }
+guard found.material() is Okp(x=public, ..) else { return }
+println("kid \{kid}, same key: \{public == x}")
+let got = @jwt.verify(
+  token[:],
+  EdDSA,
+  @ed25519.PublicKey::new(public[:]),
+  now=At(now),
+)
+println("EdDSA verified: \{got.length()} claim")<!-- /code:jwk --></code></pre>
+    <pre class="out"><!-- run:jwk -->kid 2026-09, same key: true
+EdDSA verified: 1 claim<!-- /run:jwk --></pre>
+    <footer class="foot"><span>RFC 7517 · 8037</span><a class="next" href="#token">next · signed strings</a></footer>
+  </article>
+
+  <article class="sheet" id="token">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>token</span><span class="folio">vi</span></header>
+    <h2>A signed string for a cookie.</h2>
+    <p>When the reader is your own server, a JWT is more than the job needs. <code>token</code> signs a value with a timestamp and an HMAC; the salt keeps a session cookie from passing as a password-reset link, <code>max_age</code> bounds its life, and <code>rotate</code> moves to a new key while the old one still reads.</p>
+    <pre class="listing"><code><!-- code:token -->let keys = @token.Keys::new(b"the key that signs session cookies")
+let cookie = @token.sign(
+  b"user=heke1228",
+  keys~,
+  salt="session",
+  at=Some(now),
+)
+println(cookie)
+let value = @token.verify(
+  cookie[:],
+  keys~,
+  salt="session",
+  max_age=Some(3600L),
+  now~,
+)
+println("value: \{value.length()} bytes")
+<span class="c">// A cookie signed for one purpose does not pass for another.</span>
+try @token.verify(cookie[:], keys~, salt="reset", now~) |&gt; ignore catch {
+  Signature =&gt; println("refused under salt \"reset\"")
+  _ =&gt; println("refused")
+}
+<span class="c">// A new key signs from now on; cookies under the old one still read.</span>
+let next = keys.rotate(b"next quarter's session key")
+let kept = @token.verify(cookie[:], keys=next, salt="session", now~)
+println("after rotation: \{kept.length()} bytes")<!-- /code:token --></code></pre>
+    <pre class="out"><!-- run:token -->dXNlcj1oZWtlMTIyOA.AAAAAGrijIA.TH9WhyXWbCafkk-MDH0K5PDDFyUhjeHiwgID1G6-HLc
+value: 13 bytes
+refused under salt "reset"
+after rotation: 13 bytes<!-- /run:token --></pre>
+    <footer class="foot"><span>Keys · rotate</span><a class="next" href="#chain">next · certificates</a></footer>
+  </article>
+
+  <article class="sheet" id="chain">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>x509</span><span class="folio">vii</span></header>
+    <h2>A certificate chain.</h2>
+    <p>The certificates below were written by openssl: a test authority and a server certificate it issued for <code>leaf.example.com</code>. <code>verify</code> builds the path to a trust anchor, checks each signature, the validity period, the constraints, and the name the server was asked for.</p>
+    <pre class="listing"><code><!-- code:chain -->let anchors = @x509.Roots::pem(authority)
+let chain = [@x509.pem(good)]
+let path = @x509.verify(chain[:], anchors, now~, host="leaf.example.com")
+for cert in path {
+  println(cert.subject.cn().unwrap_or("?"))
+}
+try
+  @x509.verify(chain[:], anchors, now~, host="other.example.com") |&gt; ignore
+catch {
+  Host(name) =&gt; println("refused: not issued for \{name}")
+  _ =&gt; println("refused")
+}<!-- /code:chain --></code></pre>
+    <pre class="out"><!-- run:chain -->good.example.com
+Mooncred Test CA
+refused: not issued for other.example.com<!-- /run:chain --></pre>
+    <h3>One certificate, read.</h3>
+    <p><code>parse</code> reads a certificate down to its extensions; its fields are plain data.</p>
+    <pre class="listing"><code><!-- code:read -->let cert = @x509.parse(@x509.pem(good))
+println("subject  \{cert.subject.cn().unwrap_or("?")}")
+println("issuer   \{cert.issuer.cn().unwrap_or("?")}")
+for name in cert.exts.san {
+  if name is Dns(host) {
+    println("dns      \{host}")
+  }
+}
+println("serves leaf.example.com: \{cert.matches("leaf.example.com")}")
+println("valid now: \{cert.valid_at(now)}")
+let ca = @x509.parse(@x509.pem(authority))
+println("signed by the CA: \{cert.signed_by(ca.spki)}")<!-- /code:read --></code></pre>
+    <pre class="out"><!-- run:read -->subject  good.example.com
+issuer   Mooncred Test CA
+dns      leaf.example.com
+serves leaf.example.com: true
+valid now: true
+signed by the CA: true<!-- /run:read --></pre>
+    <footer class="foot"><span>RFC 5280 · 6125</span><a class="next" href="#issue">next · issuing</a></footer>
+  </article>
+
+  <article class="sheet" id="issue">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>x509 · csr</span><span class="folio">viii</span></header>
+    <h2>A certificate and a request.</h2>
+    <p>For tests and local services, <code>self_signed</code> writes a P-256 certificate. What a real authority wants is a request: <code>csr</code> writes one signed by the key it asks a certificate for, and reads it back to check that signature.</p>
+    <pre class="listing"><code><!-- code:issue --><span class="c">// RFC 6979's P-256 test key; a real one comes from a random source.</span>
+let key = @ecdsa.PrivateKey::new(
+  @base16.decode(
+    "C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721",
+  ),
+)
+let der = @x509.self_signed(
+  key, b"\x01", "moonbitstack.example", "261029000000Z", "271029000000Z",
+)
+let cert = @x509.parse(der)
+println(
+  "self-signed \{cert.subject.cn().unwrap_or("?")}: \{cert.signed_by(cert.spki)}",
+)
+<span class="c">// What a CA would ask for instead: a request, signed by the same key.</span>
+let pem = @csr.self_signed_pem(
+  Ec(key),
+  subject=@x509.common_name("moonbitstack.example"),
+)
+let request = @csr.Request::pem(pem)
+println("request verified: \{request.verified()}")
+println("asks for this key: \{request.asks_for(Ec(key.public()))}")<!-- /code:issue --></code></pre>
+    <pre class="out"><!-- run:issue -->self-signed moonbitstack.example: true
+request verified: true
+asks for this key: true<!-- /run:issue --></pre>
+    <footer class="foot"><span>RFC 2986</span><a class="next" href="#keys">next · keys at rest</a></footer>
+  </article>
+
+  <article class="sheet" id="keys">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>pbe · pkcs12</span><span class="folio">ix</span></header>
+    <h2>Keys at rest, and containers.</h2>
+    <p>A private key on disk is kept behind a passphrase: PKCS#8 encrypted with PBES2, the form openssl writes. Salt and IV are arguments, because this library draws no randomness; in production they come from a random source such as moonrand.</p>
+    <pre class="listing"><code><!-- code:keys --><span class="c">// Salt and IV are arguments: fresh random bytes in production.</span>
+let pem = @x509.PrivateKey::Ec(key).encrypt_pem(
+  passphrase="correct horse",
+  salt=b"0123456789abcdef",
+  iv=b"fedcba9876543210",
+)
+println(pem.split("\n").next().unwrap_or(""))
+let back = @x509.PrivateKey::pem_encrypted(pem, passphrase="correct horse")
+println(
+  "same key: \{back.public() is Ec(public) &amp;&amp; public.bytes() == key.public().bytes()}",
+)
+try
+  @x509.PrivateKey::pem_encrypted(pem, passphrase="battery staple") |&gt; ignore
+catch {
+  _ =&gt; println("wrong passphrase: refused")
+}<!-- /code:keys --></code></pre>
+    <pre class="out"><!-- run:keys -->-----BEGIN ENCRYPTED PRIVATE KEY-----
+same key: true
+wrong passphrase: refused<!-- /run:keys --></pre>
+    <h3>A PKCS#12 container.</h3>
+    <p>A key and its chain travel together in one file, under the same passphrase and a MAC over the whole.</p>
+    <pre class="listing"><code><!-- code:pkcs12 -->let pfx = @pkcs12.build(
+  certs=[der],
+  key=Some(@x509.PrivateKey::Ec(key).pkcs8()),
+  passphrase="correct horse",
+  salt=b"0123456789abcdef",
+  iv=b"fedcba9876543210",
+  mac_salt=b"mac salt",
+)
+let read = @pkcs12.parse(pfx)
+println("MAC checks out: \{read.verify(passphrase="correct horse")}")
+let inside = read.contents(passphrase="correct horse")
+println(
+  "\{inside.certs.length()} certificate, key inside: \{inside.key is Some(_)}",
+)<!-- /code:pkcs12 --></code></pre>
+    <pre class="out"><!-- run:pkcs12 -->MAC checks out: true
+1 certificate, key inside: true<!-- /run:pkcs12 --></pre>
+    <footer class="foot"><span>RFC 8018 · 7292</span><a class="next" href="#revoke">next · revocation</a></footer>
+  </article>
+
+  <article class="sheet" id="revoke">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>revoke</span><span class="folio">x</span></header>
+    <h2>Revocation.</h2>
+    <p><code>revoke</code> reads a revocation list or an OCSP answer and judges a certificate by it. Fetching either is the caller's business: nothing here opens a socket. A list is only trusted when its issuer signed it and it has not aged past its next update.</p>
+    <pre class="listing"><code><!-- code:revoke -->let list = @revoke.Crl::pem(crl)
+let ca = @x509.parse(@x509.pem(authority))
+println("list signed by the CA: \{list.signed_by(ca.spki)}")
+println("list still fresh: \{list.fresh(now)}")
+for name in ["good", "revoked"] {
+  let cert = @x509.parse(
+    @x509.pem(if name == "good" { good } else { revoked }),
+  )
+  match list.status(cert) {
+    Good =&gt; println("\{name}: good")
+    Revoked(_) =&gt; println("\{name}: revoked")
+    Unknown =&gt; println("\{name}: unknown")
+  }
+}<!-- /code:revoke --></code></pre>
+    <pre class="out"><!-- run:revoke -->list signed by the CA: true
+list still fresh: true
+good: good
+revoked: revoked<!-- /run:revoke --></pre>
+    <footer class="foot"><span>RFC 5280 §5 · 6960</span><a class="next" href="#jwe">next · JWE and COSE</a></footer>
+  </article>
+
+  <article class="sheet" id="jwe">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>jwe · cose</span><span class="folio">xi</span></header>
+    <h2>JWE and COSE.</h2>
+    <p>A JWT is signed, not hidden. When the claims must stay private, <code>jwe</code> encrypts them: here directly under a shared key with AES-GCM, the IV again an argument.</p>
+    <pre class="listing"><code><!-- code:jwe -->let shared = b"a 32-byte key for A256GCM, here."
+let jwe = @jwe.encrypt(
+  b"card ending 4242",
+  key=Shared(shared),
+  alg=Dir,
+  enc=A256Gcm,
+  iv=b"twelve bytes",
+)
+println(jwe)
+let opened = @jwe.decrypt(jwe[:], key=Shared(shared), alg=Dir, enc=A256Gcm)
+println("opened: \{opened == b"card ending 4242"}")<!-- /code:jwe --></code></pre>
+    <pre class="out"><!-- run:jwe -->eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..dHdlbHZlIGJ5dGVz.ei65CyO_XY2BQcdXOYzFkA.79HmCUv3Pctq4OGRlubD7Q
+opened: true<!-- /run:jwe --></pre>
+    <h3>A CBOR Web Token.</h3>
+    <p>COSE is the same idea written in CBOR, for devices that count bytes. A CWT carries the claims a JWT would, signed here with Ed25519.</p>
+    <pre class="listing"><code><!-- code:cose --><span class="c">// RFC 8032's first Ed25519 test key.</span>
+let signer = @ed25519.PrivateKey::new(
+  @base16.decode(
+    "9D61B19DEFFD5A60BA844AF492EC2CC44449C5697B326919703BAC031CAE7F60",
+  ),
+)
+let claims = @cose.Claims::new(
+  iss="moonbitstack",
+  sub="heke1228",
+  exp=1793235600L,
+)
+let token = @cose.signed(claims, alg=EdDsa, signer)
+println("a CWT of \{token.length()} bytes")
+let back = @cose.verified(token, alg=EdDsa, signer.public(), now=At(now))
+println("issuer: \{back.iss.unwrap_or("?")}")<!-- /code:cose --></code></pre>
+    <pre class="out"><!-- run:cose -->a CWT of 106 bytes
+issuer: moonbitstack<!-- /run:cose --></pre>
+    <footer class="foot"><span>RFC 7516 · 9052 · 8392</span><a class="next" href="#roots">next · anchors</a></footer>
+  </article>
+
+  <article class="sheet" id="roots">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>roots</span><span class="folio">xii</span></header>
+    <h2>Trust anchors.</h2>
+    <p>To check a public server, the anchors are the Mozilla CA store, built from curl's extract. Build it once and keep it; pass it to <code>@x509.verify</code> in place of the test authority above.</p>
+    <pre class="listing"><code><!-- code:roots -->let mozilla = @roots.mozilla()
+println("\{mozilla.length()} anchors, Mozilla store of \{@roots.version}")<!-- /code:roots --></code></pre>
+    <pre class="out"><!-- run:roots -->118 anchors, Mozilla store of 2026-10-20<!-- /run:roots --></pre>
+    <p>Every type and function used here, and the ones that were not, are in <a href="api.html">the reference</a>.</p>
+    <footer class="foot"><span>apache-2.0</span><span class="dot"></span><span>moonbitstack/mooncred</span><a class="next" href="api.html">the reference</a></footer>
+  </article>
+
+</main>
+
+<footer class="desk-foot"><a href="https://github.com/moonbitstack/mooncred">github.com/moonbitstack/mooncred</a></footer>
+
+</body>
+</html>
