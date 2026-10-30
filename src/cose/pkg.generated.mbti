@@ -24,9 +24,9 @@ pub fn sign1(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? 
 
 pub fn signed(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
 
-pub fn uncovered(BytesView, alg~ : Alg, &@spec.Verifier, now? : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
+pub fn uncovered(BytesView, alg~ : Alg, &@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
 
-pub fn verified(BytesView, alg~ : Alg, &@spec.Verifier, now? : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
+pub fn verified(BytesView, alg~ : Alg, &@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
 
 pub fn verify1(BytesView, alg~ : Alg, &@spec.Verifier, external? : BytesView) -> Bytes raise Refused
 

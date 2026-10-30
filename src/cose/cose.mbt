@@ -88,6 +88,8 @@ fn Alg::key_size(self : Alg) -> Int32 raise Refused {
 }
 
 ///|
+/// The algorithm's name as JOSE spells it, for messages and logs; on the wire
+/// COSE writes the integer identifier instead.
 pub fn Alg::name(self : Alg) -> String {
   match self {
     Es256 => "ES256"
@@ -299,6 +301,7 @@ pub struct Keyed {
 }
 
 ///|
+/// A MAC factory as a `Keyed`, which makes and checks COSE_Mac0 tags.
 pub fn mac(make : () -> &@spec.Mac) -> Keyed {
   { make, }
 }

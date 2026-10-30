@@ -43,6 +43,7 @@ pub(all) struct Claims {
 } derive(Eq, Debug)
 
 ///|
+/// A claim set from the claims given; the others stay absent, not empty.
 pub fn Claims::new(
   iss? : String,
   sub? : String,
@@ -176,11 +177,15 @@ pub fn signed(
 
 ///|
 /// Verify a COSE_Sign1 that carries a claim set, and judge its times.
+///
+/// `now` has no default: `exp` and `nbf` are checked against it with `leeway`
+/// seconds of slack either side, and `now=Ignored` skips the check, which a
+/// caller has to write out. The sixty-second leeway is python-cwt's.
 pub fn verified(
   octets : BytesView,
   alg~ : Alg,
   verifier : &@spec.Verifier,
-  now~ : Clock = Ignored,
+  now~ : Clock,
   leeway~ : Int64 = 60L,
   external~ : BytesView = b"",
 ) -> Claims raise Refused {
@@ -207,11 +212,13 @@ pub fn macd(
 }
 
 ///|
+/// Verify a COSE_Mac0 made by `macd` and read the claim set out of it, judging
+/// its times as `verified` does.
 pub fn uncovered(
   octets : BytesView,
   alg~ : Alg,
   verifier : &@spec.Verifier,
-  now~ : Clock = Ignored,
+  now~ : Clock,
   leeway~ : Int64 = 60L,
   external~ : BytesView = b"",
 ) -> Claims raise Refused {

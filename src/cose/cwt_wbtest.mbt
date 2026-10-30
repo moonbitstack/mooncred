@@ -127,7 +127,7 @@ test "cwt: a signed claim set is judged by the clock the caller names" {
   }
   assert_true(early)
   // With no clock at all, the times are the caller's business and nothing is judged.
-  assert_eq(verified(message[:], alg=Hs256, verifier), claimset())
+  assert_eq(verified(message[:], alg=Hs256, verifier, now=Ignored), claimset())
 }
 
 ///|
@@ -141,11 +141,11 @@ test "cwt: a MACed claim set carries the same claims" {
   let verifier : &@spec.Verifier = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let message = macd(claimset(), alg=Hs256, tagger)
   assert_eq(message[0], b'\xd1') // tag 17
-  assert_eq(uncovered(message[:], alg=Hs256, verifier), claimset())
+  assert_eq(uncovered(message[:], alg=Hs256, verifier, now=Ignored), claimset())
   // A COSE_Mac0 handed to the signature verifier is refused: the two structures are not
   // interchangeable even when the key and the algorithm are the same.
   let wrong = try {
-    verified(message[:], alg=Hs256, verifier) |> ignore
+    verified(message[:], alg=Hs256, verifier, now=Ignored) |> ignore
     false
   } catch {
     Malformed(_) => true
