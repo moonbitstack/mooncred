@@ -78,6 +78,8 @@ a { color: inherit; }
 .bar .gh { display: flex; }
 .bar .gh svg { width: 15px; height: 15px; fill: currentColor; }
 
+.defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
 /* ---------------------------------------------------------------- the sheets */
 .stack {
   display: grid;
@@ -92,12 +94,8 @@ a { color: inherit; }
   min-width: 0;
   padding: 34px clamp(20px, 6vw, 64px) 26px;
   color: var(--ink);
-  background:
-    radial-gradient(54% 34% at 18% 0%, rgba(255, 240, 210, .55) 0%, transparent 70%),
-    linear-gradient(170deg, var(--paper-hi) 0%, var(--paper) 46%, #E2D2B4 100%);
   border-radius: 2px;
   box-shadow:
-    0 1px 0 rgba(255, 252, 240, .5) inset,
     0 2px 2px rgba(28, 14, 6, .30),
     0 14px 22px rgba(24, 12, 5, .34),
     0 34px 50px rgba(18, 9, 4, .30);
@@ -105,19 +103,42 @@ a { color: inherit; }
 .sheet:nth-child(odd) { transform: rotate(-.18deg); }
 .sheet:nth-child(even) { transform: rotate(.12deg); }
 .sheet::before {
-  /* laid paper: the fine lines of the mould, and fibre */
+  /* The letter's own paper, as on the first page: the edge browned by age,
+     fibre and flecks, the chain lines of laid paper and the uneven pulp, at
+     the same strengths, torn at the edge by the same filter. */
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
   background:
-    repeating-linear-gradient(0deg, rgba(96, 74, 48, .035) 0 1px, transparent 1px 4px),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .26 0 0 0 0 .16 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
-  mix-blend-mode: multiply;
-  opacity: .5;
+    linear-gradient(to right, rgba(110, 80, 40, .2), transparent 30px),
+    linear-gradient(to left, rgba(110, 80, 40, .2), transparent 30px),
+    linear-gradient(to bottom, rgba(110, 80, 40, .2), transparent 30px),
+    linear-gradient(to top, rgba(110, 80, 40, .24), transparent 36px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5 0.035' numOctaves='2' seed='41' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.36 0 0 0 0 0.27 0 0 0 0 0.15 0.765 0.255 0.085 0 -0.7905'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='4' seed='31' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.22 0 0 0 0 0.15 0 0 0 0 0.08 0.2728 0.132 0.0352 0 -0.132'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0035 0.62' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.4 0 0 0 0 0.31 0 0 0 0 0.17 0.24 0.06 0.03 0 -0.198'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.032' numOctaves='3' seed='6' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.52 0 0 0 0 0.4 0 0 0 0 0.22 0.198 0.066 0.022 0 -0.1364'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+    linear-gradient(162deg, #FBF4E4 0%, #F3E7CF 40%, #EFE0C2 76%, #E7D5B2 100%);
+  filter: url(#f-deckle);
 }
-.sheet > * { position: relative; }
+.sheet::after {
+  /* the tooth lit from the upper left, and the lamp falling across the sheet */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(54% 44% at 20% 6%, rgba(255, 236, 196, .75) 0%, rgba(255, 228, 180, .22) 34%, transparent 66%),
+    linear-gradient(158deg, rgba(255, 240, 210, .18) 0%, transparent 42%, rgba(112, 80, 40, .16) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9 1.1' numOctaves='3' seed='23' result='b' stitchTiles='stitch'/%3E%3CfeDiffuseLighting in='b' surfaceScale='2' diffuseConstant='1.06' lighting-color='%23FFFFFF'%3E%3CfeDistantLight azimuth='228' elevation='52'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  opacity: .9;
+  mix-blend-mode: soft-light;
+  filter: url(#f-deckle);
+}
+.sheet > * { position: relative; z-index: 1; }
 
 .lh {
   display: flex;
