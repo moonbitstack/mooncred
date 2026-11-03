@@ -367,3 +367,37 @@ test "ml-dsa: another message, or another signature, does not verify" {
     false,
   )
 }
+
+///|
+/// The identifier says how long the key is, and a key of another length wearing it is refused
+/// before anything tries to use it: a 1312-octet key under the ML-DSA-65 identifier is an
+/// ML-DSA-44 key with a claim it cannot support.
+test "ml-dsa: a key of another length under an identifier is refused" {
+  let cert = @x509.parse(fixture(mldsa_44))
+  let wrong : @x509.Spki = {
+    alg: "2.16.840.1.101.3.4.3.18",
+    params: None,
+    key: cert.spki.key,
+  }
+  try {
+    wrong.key() |> ignore
+    fail("a key of the wrong length was read")
+  } catch {
+    @asn1.Malformed(m) =>
+      assert_eq(m, "an ML-DSA key of 1312 octets where 1952 are asked for")
+    e => fail("expected Malformed, got \{e}")
+  }
+  // The parameters are absent for ML-DSA, and a NULL there is not the same encoding.
+  let with_params : @x509.Spki = {
+    alg: "2.16.840.1.101.3.4.3.17",
+    params: Some("2.16.840.1.101.3.4.3.17"),
+    key: cert.spki.key,
+  }
+  try {
+    with_params.key() |> ignore
+    fail("an ML-DSA key with parameters was read")
+  } catch {
+    @asn1.Malformed(m) => assert_eq(m, "ML-DSA key with parameters")
+    e => fail("expected Malformed, got \{e}")
+  }
+}
