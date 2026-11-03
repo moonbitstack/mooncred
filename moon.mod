@@ -1,6 +1,6 @@
 name = "moonbitstack/mooncred"
 
-version = "0.6.7"
+version = "0.6.8"
 
 readme = "README.md"
 
@@ -11,13 +11,30 @@ license = "Apache-2.0"
 keywords = [
   "jwt",
   "jws",
+  "jwe",
   "jwk",
   "jose",
+  "cose",
+  "cwt",
+  "cbor",
   "token",
   "credential",
   "x509",
   "certificate",
+  "csr",
+  "pkcs10",
+  "pkcs8",
+  "pkcs12",
+  "pfx",
+  "pem",
+  "crl",
+  "ocsp",
+  "revocation",
+  "root-certificates",
+  "pbe",
   "oauth2",
+  "rfc7519",
+  "rfc5280",
   "moonbit",
 ]
 
