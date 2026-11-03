@@ -16,7 +16,7 @@ pub fn mac(() -> &@spec.Mac) -> Keyed
 
 pub fn mac0(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
 
-pub fn macd(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+pub fn maced(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
 
 pub fn parse(BytesView, tag~ : UInt64) -> Message raise Refused
 
@@ -24,7 +24,7 @@ pub fn sign1(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? 
 
 pub fn signed(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
 
-pub fn uncovered(BytesView, alg~ : Alg, &@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
+pub fn unmaced(BytesView, alg~ : Alg, &@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
 
 pub fn verified(BytesView, alg~ : Alg, &@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
 
@@ -47,13 +47,13 @@ pub fn Refused::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) enum Alg {
-  Es256
-  EdDsa
-  Rs256
-  Hs256
-  A128Gcm
-  A192Gcm
-  A256Gcm
+  ES256
+  EdDSA
+  RS256
+  HS256
+  A128GCM
+  A192GCM
+  A256GCM
 } derive(Eq, @debug.Debug)
 pub fn Alg::equal(Self, Self) -> Bool
 pub fn Alg::name(Self) -> String

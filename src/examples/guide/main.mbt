@@ -323,9 +323,9 @@ fn cwt() -> Unit raise {
     sub="heke1228",
     exp=1793235600L,
   )
-  let token = @cose.signed(claims, alg=EdDsa, signer)
+  let token = @cose.signed(claims, alg=EdDSA, signer)
   println("a CWT of \{token.length()} bytes")
-  let back = @cose.verified(token, alg=EdDsa, signer.public(), now=At(now))
+  let back = @cose.verified(token, alg=EdDSA, signer.public(), now=At(now))
   println("issuer: \{back.iss.unwrap_or("?")}")
   // @@end
 }

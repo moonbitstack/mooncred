@@ -164,7 +164,8 @@ pub fn Claims::check(
 }
 
 ///|
-/// Sign a claim set into a COSE_Sign1.
+/// Sign a claim set into a COSE_Sign1: [`verified`] is the other half, and [`maced`] and
+/// [`unmaced`] the same pair over a COSE_Mac0.
 pub fn signed(
   claims : Claims,
   alg~ : Alg,
@@ -200,8 +201,8 @@ pub fn verified(
 }
 
 ///|
-/// MAC a claim set into a COSE_Mac0, and verify one back.
-pub fn macd(
+/// MAC a claim set into a COSE_Mac0 — the MAC pair of [`signed`] and [`verified`].
+pub fn maced(
   claims : Claims,
   alg~ : Alg,
   tagger : &@spec.Signer,
@@ -212,9 +213,9 @@ pub fn macd(
 }
 
 ///|
-/// Verify a COSE_Mac0 made by `macd` and read the claim set out of it, judging
-/// its times as `verified` does.
-pub fn uncovered(
+/// Verify a COSE_Mac0 made by [`maced`] and read the claim set out of it, judging its times as
+/// [`verified`] does.
+pub fn unmaced(
   octets : BytesView,
   alg~ : Alg,
   verifier : &@spec.Verifier,

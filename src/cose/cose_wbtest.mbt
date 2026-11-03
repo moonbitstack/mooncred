@@ -69,7 +69,7 @@ test "cose: a signed message verifies and its payload is what was signed" {
   let signer : &@spec.Signer = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let verifier : &@spec.Verifier = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let payload = from_hex("746865207061796c6f6164")
-  let message = sign1(payload[:], alg=Hs256, signer, kid=Some(from_hex("aabb")))
+  let message = sign1(payload[:], alg=HS256, signer, kid=Some(from_hex("aabb")))
   // The tag, then an array of four: the protected header, an empty map, the payload and the MAC.
   assert_eq(message[0], b'\xd2')
   let decoded = @cbor.decode(message[:]) catch { _ => panic() }
@@ -84,7 +84,7 @@ test "cose: a signed message verifies and its payload is what was signed" {
     }
     _ => panic()
   }
-  assert_eq(verify1(message[:], alg=Hs256, verifier), payload)
+  assert_eq(verify1(message[:], alg=HS256, verifier), payload)
 }
 
 ///|
@@ -96,10 +96,10 @@ test "cose: an edited payload and a substituted algorithm are both refused" {
   )
   let signer : &@spec.Signer = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let verifier : &@spec.Verifier = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
-  let message = sign1(from_hex("0102")[:], alg=Hs256, signer)
+  let message = sign1(from_hex("0102")[:], alg=HS256, signer)
   // Another algorithm than the one the message names: refused before anything is verified.
   let confused = try {
-    verify1(message[:], alg=Es256, verifier) |> ignore
+    verify1(message[:], alg=ES256, verifier) |> ignore
     false
   } catch {
     Malformed(_) => true
@@ -119,7 +119,7 @@ test "cose: an edited payload and a substituted algorithm are both refused" {
     ),
   )
   let refused = try {
-    verify1(edited[:], alg=Hs256, verifier) |> ignore
+    verify1(edited[:], alg=HS256, verifier) |> ignore
     false
   } catch {
     Signature => true
@@ -128,7 +128,7 @@ test "cose: an edited payload and a substituted algorithm are both refused" {
   assert_true(refused)
   // A COSE_Mac0 is not a COSE_Sign1, even with the same key.
   let wrong_tag = try {
-    verify1(message[:], alg=Hs256, verifier, external=b"x") |> ignore
+    verify1(message[:], alg=HS256, verifier, external=b"x") |> ignore
     false
   } catch {
     Signature => true
@@ -150,15 +150,15 @@ test "cose: an Ed25519 signature verifies, and not under another key" {
   ) catch {
     _ => panic()
   }
-  let message = sign1(from_hex("0102030405")[:], alg=EdDsa, private_key)
-  assert_eq(verify1(message[:], alg=EdDsa, public), from_hex("0102030405"))
+  let message = sign1(from_hex("0102030405")[:], alg=EdDSA, private_key)
+  assert_eq(verify1(message[:], alg=EdDSA, public), from_hex("0102030405"))
   let other = @ed25519.PublicKey::new(
     from_hex("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c")[:],
   ) catch {
     _ => panic()
   }
   let refused = try {
-    verify1(message[:], alg=EdDsa, other) |> ignore
+    verify1(message[:], alg=EdDSA, other) |> ignore
     false
   } catch {
     Signature => true
@@ -178,7 +178,7 @@ test "cose: a MAC keeps the payload readable and an encryption does not" {
   let tagger : &@spec.Signer = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let verifier : &@spec.Verifier = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let payload = from_hex("68656c6c6f")
-  let message = mac0(payload[:], alg=Hs256, tagger)
+  let message = mac0(payload[:], alg=HS256, tagger)
   let decoded = @cbor.decode(message[:]) catch { _ => panic() }
   match decoded {
     Tag(number, Array(items)) => {
@@ -187,7 +187,7 @@ test "cose: a MAC keeps the payload readable and an encryption does not" {
     }
     _ => panic()
   }
-  assert_eq(verify_mac0(message[:], alg=Hs256, verifier), payload)
+  assert_eq(verify_mac0(message[:], alg=HS256, verifier), payload)
   // An encryption of the same payload: no plaintext anywhere in the message, and the nonce in
   // the header, which is what makes it authenticated.
   let aes_key = from_hex(
@@ -195,13 +195,13 @@ test "cose: a MAC keeps the payload readable and an encryption does not" {
   )
   let envelope = encrypt0(
     payload[:],
-    alg=A256Gcm,
+    alg=A256GCM,
     key=aes_key[:],
     iv=from_hex("000102030405060708090a0b")[:],
   )
   let printable = to_hex(envelope[:])
   assert_false(printable.contains("68656c6c6f"))
-  assert_eq(decrypt0(envelope[:], alg=A256Gcm, key=aes_key[:]), payload)
+  assert_eq(decrypt0(envelope[:], alg=A256GCM, key=aes_key[:]), payload)
   // The nonce is part of the protected header, so editing it is editing what was authenticated.
   let decoded_sealed = @cbor.decode(envelope[:]) catch { _ => panic() }
   match decoded_sealed {
@@ -216,7 +216,7 @@ test "cose: a MAC keeps the payload readable and an encryption does not" {
     _ => panic()
   }
   let refused = try {
-    decrypt0(envelope[:], alg=A256Gcm, key=key[:], external=b"other") |> ignore
+    decrypt0(envelope[:], alg=A256GCM, key=key[:], external=b"other") |> ignore
     false
   } catch {
     Signature => true
@@ -232,7 +232,7 @@ test "cose: the wrong key or the wrong algorithm for an encryption is refused" {
   let short = from_hex("000102030405060708090a0b0c0d0e0f")
   let iv = from_hex("000102030405060708090a0b")
   let refused = try {
-    encrypt0(from_hex("00")[:], alg=A256Gcm, key=short[:], iv=iv[:]) |> ignore
+    encrypt0(from_hex("00")[:], alg=A256GCM, key=short[:], iv=iv[:]) |> ignore
     false
   } catch {
     Key => true
@@ -240,7 +240,7 @@ test "cose: the wrong key or the wrong algorithm for an encryption is refused" {
   }
   assert_true(refused)
   let not_encryption = try {
-    encrypt0(from_hex("00")[:], alg=Rs256, key=short[:], iv=iv[:]) |> ignore
+    encrypt0(from_hex("00")[:], alg=RS256, key=short[:], iv=iv[:]) |> ignore
     false
   } catch {
     Malformed(_) => true

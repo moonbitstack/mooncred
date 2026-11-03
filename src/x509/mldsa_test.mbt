@@ -361,7 +361,7 @@ test "ml-dsa: another message, or another signature, does not verify" {
       cert.tbs,
       alg=cert.alg,
       params=cert.params,
-      sig={ bytes: flip(sig.bytes, sig.bytes.length() - 1), unused: 0 },
+      sig={ bytes: flip(sig.bytes, sig.bytes.length() - 1), unused: 0, },
       key=ca.spki,
     ),
     false,

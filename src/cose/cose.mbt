@@ -32,46 +32,48 @@ pub(all) suberror Refused {
 ///
 /// One enumeration covers signing, MAC and encryption because a COSE header names all three in the
 /// same `alg` label; which of them a value means is decided by the structure it appears in, and a
-/// value that cannot be that structure's is refused.
+/// value that cannot be that structure's is refused. The variants are spelled as the IANA
+/// registry spells them, which is also how `jwt.Alg` spells the ones the two share; `name` gives
+/// that spelling back.
 pub(all) enum Alg {
   /// ECDSA with SHA-256, identifier -7.
-  Es256
+  ES256
   /// EdDSA over Ed25519, identifier -8.
-  EdDsa
+  EdDSA
   /// RSASSA-PKCS1-v1_5 with SHA-256, identifier -257.
-  Rs256
+  RS256
   /// HMAC with SHA-256, identifier 5.
-  Hs256
+  HS256
   /// AES-GCM, identifiers 1, 2 and 3.
-  A128Gcm
-  A192Gcm
-  A256Gcm
+  A128GCM
+  A192GCM
+  A256GCM
 } derive(Eq, Debug)
 
 ///|
 /// The identifier as it is written in a header.
 fn Alg::id(self : Alg) -> Int64 {
   match self {
-    Es256 => -7L
-    EdDsa => -8L
-    Rs256 => -257L
-    Hs256 => 5L
-    A128Gcm => 1L
-    A192Gcm => 2L
-    A256Gcm => 3L
+    ES256 => -7L
+    EdDSA => -8L
+    RS256 => -257L
+    HS256 => 5L
+    A128GCM => 1L
+    A192GCM => 2L
+    A256GCM => 3L
   }
 }
 
 ///|
 fn Alg::of_id(number : Int64) -> Alg raise Refused {
   match number {
-    -7L => Es256
-    -8L => EdDsa
-    -257L => Rs256
-    5L => Hs256
-    1L => A128Gcm
-    2L => A192Gcm
-    3L => A256Gcm
+    -7L => ES256
+    -8L => EdDSA
+    -257L => RS256
+    5L => HS256
+    1L => A128GCM
+    2L => A192GCM
+    3L => A256GCM
     _ => raise Unsupported("algorithm identifier \{number}")
   }
 }
@@ -80,9 +82,9 @@ fn Alg::of_id(number : Int64) -> Alg raise Refused {
 /// The key length an AES-GCM identifier wants.
 fn Alg::key_size(self : Alg) -> Int32 raise Refused {
   match self {
-    A128Gcm => 16
-    A192Gcm => 24
-    A256Gcm => 32
+    A128GCM => 16
+    A192GCM => 24
+    A256GCM => 32
     _ => raise Malformed("this identifier is not an encryption algorithm")
   }
 }
@@ -92,13 +94,13 @@ fn Alg::key_size(self : Alg) -> Int32 raise Refused {
 /// COSE writes the integer identifier instead.
 pub fn Alg::name(self : Alg) -> String {
   match self {
-    Es256 => "ES256"
-    EdDsa => "EdDSA"
-    Rs256 => "RS256"
-    Hs256 => "HS256"
-    A128Gcm => "A128GCM"
-    A192Gcm => "A192GCM"
-    A256Gcm => "A256GCM"
+    ES256 => "ES256"
+    EdDSA => "EdDSA"
+    RS256 => "RS256"
+    HS256 => "HS256"
+    A128GCM => "A128GCM"
+    A192GCM => "A192GCM"
+    A256GCM => "A256GCM"
   }
 }
 
@@ -176,7 +178,7 @@ pub fn sign1(
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
   match alg {
-    A128Gcm | A192Gcm | A256Gcm =>
+    A128GCM | A192GCM | A256GCM =>
       raise Malformed("a signature is not made with " + alg.name())
     _ => ()
   }
@@ -340,7 +342,7 @@ pub fn mac0(
   kid~ : BytesView? = None,
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
-  if alg != Hs256 {
+  if alg != HS256 {
     raise Unsupported("a MAC with " + alg.name())
   }
   let head = header(alg, kid, None)

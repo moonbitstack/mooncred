@@ -1321,7 +1321,7 @@
     <h2>cose</h2>
     <p class="spec"><a href="https://www.rfc-editor.org/rfc/rfc9052">COSE, RFC 9052</a> · <a href="https://www.rfc-editor.org/rfc/rfc9053">COSE algorithms, RFC 9053</a> · <a href="https://www.rfc-editor.org/rfc/rfc8392">CWT, RFC 8392</a></p>
     <p>Three structures — COSE_Sign1, COSE_Mac0, COSE_Encrypt0 — and the claim set CWT signs.</p>
-    <p class="toc"><a href="#cose-Refused">Refused</a> <a href="#cose-Alg">Alg</a> <a href="#cose-Claims">Claims</a> <a href="#cose-Clock">Clock</a> <a href="#cose-Keyed">Keyed</a> <a href="#cose-Message">Message</a> <a href="#cose-decrypt0">decrypt0</a> <a href="#cose-encrypt0">encrypt0</a> <a href="#cose-mac">mac</a> <a href="#cose-mac0">mac0</a> <a href="#cose-macd">macd</a> <a href="#cose-parse">parse</a> <a href="#cose-sign1">sign1</a> <a href="#cose-signed">signed</a> <a href="#cose-uncovered">uncovered</a> <a href="#cose-verified">verified</a> <a href="#cose-verify1">verify1</a> <a href="#cose-verify_mac0">verify_mac0</a></p>
+    <p class="toc"><a href="#cose-Refused">Refused</a> <a href="#cose-Alg">Alg</a> <a href="#cose-Claims">Claims</a> <a href="#cose-Clock">Clock</a> <a href="#cose-Keyed">Keyed</a> <a href="#cose-Message">Message</a> <a href="#cose-decrypt0">decrypt0</a> <a href="#cose-encrypt0">encrypt0</a> <a href="#cose-mac">mac</a> <a href="#cose-mac0">mac0</a> <a href="#cose-maced">maced</a> <a href="#cose-parse">parse</a> <a href="#cose-sign1">sign1</a> <a href="#cose-signed">signed</a> <a href="#cose-unmaced">unmaced</a> <a href="#cose-verified">verified</a> <a href="#cose-verify1">verify1</a> <a href="#cose-verify_mac0">verify_mac0</a></p>
 <div class="item" id="cose-Refused">
 <div class="name"><span class="kind">error</span>Refused</div>
 <pre class="sig"><code>pub(all) suberror Refused {
@@ -1337,16 +1337,16 @@
 <div class="item" id="cose-Alg">
 <div class="name"><span class="kind">type</span>Alg</div>
 <pre class="sig"><code>pub(all) enum Alg {
-  Es256
-  EdDsa
-  Rs256
-  Hs256
-  A128Gcm
-  A192Gcm
-  A256Gcm
+  ES256
+  EdDSA
+  RS256
+  HS256
+  A128GCM
+  A192GCM
+  A256GCM
 } derive(Eq, @debug.Debug)</code></pre>
 <p>The algorithm, by its COSE identifier (RFC 9053).</p>
-<p>One enumeration covers signing, MAC and encryption because a COSE header names all three in the same <code>alg</code> label; which of them a value means is decided by the structure it appears in, and a value that cannot be that structure's is refused.</p>
+<p>One enumeration covers signing, MAC and encryption because a COSE header names all three in the same <code>alg</code> label; which of them a value means is decided by the structure it appears in, and a value that cannot be that structure's is refused. The variants are spelled as the IANA registry spells them, which is also how <code>jwt.Alg</code> spells the ones the two share; <code>name</code> gives that spelling back.</p>
 </div>
 <div class="item" id="cose-Claims">
 <div class="name"><span class="kind">type</span>Claims</div>
@@ -1406,10 +1406,10 @@
 <pre class="sig"><code>pub fn mac0(BytesView, alg~ : Alg, &amp;@spec.Signer, kid? : BytesView?, external? : BytesView) -&gt; Bytes raise Refused</code></pre>
 <p>MAC a payload into a COSE_Mac0.</p>
 </div>
-<div class="item" id="cose-macd">
-<div class="name"><span class="kind">fn</span>macd</div>
-<pre class="sig"><code>pub fn macd(Claims, alg~ : Alg, &amp;@spec.Signer, kid? : BytesView?, external? : BytesView) -&gt; Bytes raise Refused</code></pre>
-<p>MAC a claim set into a COSE_Mac0, and verify one back.</p>
+<div class="item" id="cose-maced">
+<div class="name"><span class="kind">fn</span>maced</div>
+<pre class="sig"><code>pub fn maced(Claims, alg~ : Alg, &amp;@spec.Signer, kid? : BytesView?, external? : BytesView) -&gt; Bytes raise Refused</code></pre>
+<p>MAC a claim set into a COSE_Mac0 — the MAC pair of [<code>signed</code>] and [<code>verified</code>].</p>
 </div>
 <div class="item" id="cose-parse">
 <div class="name"><span class="kind">fn</span>parse</div>
@@ -1426,12 +1426,12 @@
 <div class="item" id="cose-signed">
 <div class="name"><span class="kind">fn</span>signed</div>
 <pre class="sig"><code>pub fn signed(Claims, alg~ : Alg, &amp;@spec.Signer, kid? : BytesView?, external? : BytesView) -&gt; Bytes raise Refused</code></pre>
-<p>Sign a claim set into a COSE_Sign1.</p>
+<p>Sign a claim set into a COSE_Sign1: [<code>verified</code>] is the other half, and [<code>maced</code>] and [<code>unmaced</code>] the same pair over a COSE_Mac0.</p>
 </div>
-<div class="item" id="cose-uncovered">
-<div class="name"><span class="kind">fn</span>uncovered</div>
-<pre class="sig"><code>pub fn uncovered(BytesView, alg~ : Alg, &amp;@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -&gt; Claims raise Refused</code></pre>
-<p>Verify a COSE_Mac0 made by <code>macd</code> and read the claim set out of it, judging its times as <code>verified</code> does.</p>
+<div class="item" id="cose-unmaced">
+<div class="name"><span class="kind">fn</span>unmaced</div>
+<pre class="sig"><code>pub fn unmaced(BytesView, alg~ : Alg, &amp;@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -&gt; Claims raise Refused</code></pre>
+<p>Verify a COSE_Mac0 made by [<code>maced</code>] and read the claim set out of it, judging its times as [<code>verified</code>] does.</p>
 </div>
 <div class="item" id="cose-verified">
 <div class="name"><span class="kind">fn</span>verified</div>
