@@ -203,13 +203,21 @@ fn issue() -> (@ecdsa.PrivateKey, Bytes) raise {
       "C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721",
     ),
   )
+  // The instants are seconds since the Unix epoch, the same unit a certificate's validity is
+  // read back in, and the extensions are what a client compares and obeys.
   let der = @x509.self_signed(
-    key, b"\x01", "moonbitstack.example", "261029000000Z", "271029000000Z",
+    key=Ec(key),
+    cn="moonbitstack.example",
+    serial=b"\x01",
+    not_before=1793232000L,
+    not_after=1824768000L,
+    exts={ ..@x509.Exts::empty(), san: [Dns("moonbitstack.example")], },
   )
   let cert = @x509.parse(der)
   println(
     "self-signed \{cert.subject.cn().unwrap_or("?")}: \{cert.signed_by(cert.spki)}",
   )
+  println("names its own host: \{cert.matches("moonbitstack.example")}")
   // What a CA would ask for instead: a request, signed by the same key.
   let pem = @csr.self_signed_pem(
     Ec(key),

@@ -23,6 +23,39 @@ let oid_p521 : String = "1.3.132.0.35"
 let oid_secp256k1 : String = "1.3.132.0.10"
 
 ///|
+let oid_ml_dsa_44 : String = "2.16.840.1.101.3.4.3.17"
+
+///|
+let oid_ml_dsa_65 : String = "2.16.840.1.101.3.4.3.18"
+
+///|
+let oid_ml_dsa_87 : String = "2.16.840.1.101.3.4.3.19"
+
+///|
+/// The parameter set one of the three ML-DSA identifiers names (RFC 9881 §2), or `None` when the
+/// identifier is some other algorithm. An ML-DSA public key and an ML-DSA signature are told apart
+/// by nothing but this: the identifier is the algorithm and the parameter set at once.
+fn ml_dsa_of(oid : String) -> @mldsa.Kind? {
+  match oid {
+    o if o == oid_ml_dsa_44 => Some(D44)
+    o if o == oid_ml_dsa_65 => Some(D65)
+    o if o == oid_ml_dsa_87 => Some(D87)
+    _ => None
+  }
+}
+
+///|
+/// The object identifier arcs the same three sets are written by, for a writer that has the key
+/// rather than the identifier.
+fn ml_dsa_arcs(kind : @mldsa.Kind) -> Array[Int32] {
+  match kind {
+    D44 => [2, 16, 840, 1, 101, 3, 4, 3, 17]
+    D65 => [2, 16, 840, 1, 101, 3, 4, 3, 18]
+    D87 => [2, 16, 840, 1, 101, 3, 4, 3, 19]
+  }
+}
+
+///|
 /// A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one (for
 /// an EC key, the named curve), and the key bits. Absent and NULL parameters both read as `None`,
 /// which is what every algorithm reachable from here means by either.
@@ -40,6 +73,7 @@ pub(all) enum Key {
   Rsa(@rsa.PublicKey)
   Ec(@ecdsa.PublicKey)
   Ed25519(@ed25519.PublicKey)
+  MlDsa(@mldsa.PublicKey)
 }
 
 ///|
@@ -181,7 +215,8 @@ pub fn Spki::rsa(
 
 ///|
 /// The public key a SubjectPublicKeyInfo carries: RSA, ECDSA on P-256, P-384, P-521 or
-/// secp256k1, or Ed25519. Another algorithm raises `Unsupported`.
+/// secp256k1, Ed25519, or ML-DSA at any of its three parameter sets. Another algorithm raises
+/// `Unsupported`.
 pub fn Spki::key(self : Spki) -> Key raise @asn1.Refused {
   match self.alg {
     a if a == oid_rsa => Rsa(self.rsa())
@@ -197,7 +232,31 @@ pub fn Spki::key(self : Spki) -> Key raise @asn1.Refused {
         },
       )
     }
+    a if ml_dsa_of(a) is Some(kind) => MlDsa(ml_dsa_key(self, kind))
     a => raise @asn1.Unsupported("public key algorithm " + a)
+  }
+}
+
+///|
+/// The ML-DSA public key a SubjectPublicKeyInfo carries (RFC 9881 §4): the key bits are the raw
+/// `pk` of FIPS 204 §7.2, not an ASN.1 structure, and the identifier's parameter set decides how
+/// long that is. A key of the wrong length is refused here rather than at the first signature:
+/// a shorter one would be a different algorithm's key wearing this identifier.
+fn ml_dsa_key(
+  spki : Spki,
+  kind : @mldsa.Kind,
+) -> @mldsa.PublicKey raise @asn1.Refused {
+  if spki.params is Some(_) {
+    raise @asn1.Malformed("ML-DSA key with parameters")
+  }
+  let pk = key_octets(spki)
+  if pk.length() != kind.public_key() {
+    raise @asn1.Malformed(
+      "an ML-DSA key of \{pk.length()} octets where \{kind.public_key()} are asked for",
+    )
+  }
+  @mldsa.PublicKey::new(kind~, pk[:]) catch {
+    _ => raise @asn1.Malformed("ML-DSA public key of the wrong length")
   }
 }
 
@@ -242,9 +301,26 @@ fn oid_der(dotted : String) -> Bytes raise @asn1.Refused {
 }
 
 ///|
+/// The object identifier arcs a curve is named by, for the writer. This covers every curve the
+/// crypto package holds, including the three the reader above does not take: a key in hand can be
+/// written out whatever curve it is on, and only what a peer sends has to pass the reader's list.
+fn curve_arcs(curve : @curve.Curve) -> Array[Int32] {
+  match curve {
+    P256 => [1, 2, 840, 10045, 3, 1, 7]
+    P384 => [1, 3, 132, 0, 34]
+    P521 => [1, 3, 132, 0, 35]
+    Secp256k1 => [1, 3, 132, 0, 10]
+    BrainpoolP256r1 => [1, 3, 36, 3, 3, 2, 8, 1, 1, 7]
+    BrainpoolP384r1 => [1, 3, 36, 3, 3, 2, 8, 1, 1, 11]
+    BrainpoolP512r1 => [1, 3, 36, 3, 3, 2, 8, 1, 1, 13]
+  }
+}
+
+///|
 /// The SubjectPublicKeyInfo for a public key: the algorithm, the parameters that algorithm
-/// takes — NULL for RSA, the named curve for EC, none for Ed25519 — and the key as a BIT STRING.
-/// This is what a certificate, a request or a key file carries, built from a key in hand.
+/// takes — NULL for RSA, the named curve for EC, none for Ed25519 and ML-DSA — and the key as a
+/// BIT STRING. This is what a certificate, a request or a key file carries, built from a key in
+/// hand.
 pub fn Spki::encode(key : Key) -> Bytes {
   match key {
     Rsa(k) =>
@@ -257,24 +333,38 @@ pub fn Spki::encode(key : Key) -> Bytes {
           ]),
         ),
       ])
-    Ec(k) => {
-      let arcs = match k.curve() {
-        P256 => [1, 2, 840, 10045, 3, 1, 7]
-        P384 => [1, 3, 132, 0, 34]
-        P521 => [1, 3, 132, 0, 35]
-        Secp256k1 => [1, 3, 132, 0, 10]
-      }
+    Ec(k) =>
       @asn1.sequence([
-        @asn1.sequence([@asn1.oid([1, 2, 840, 10045, 2, 1]), @asn1.oid(arcs)]),
+        @asn1.sequence([
+          @asn1.oid([1, 2, 840, 10045, 2, 1]),
+          @asn1.oid(curve_arcs(k.curve())),
+        ]),
         @asn1.bit_string(k.bytes()),
       ])
-    }
     Ed25519(k) =>
       @asn1.sequence([
         @asn1.sequence([@asn1.oid([1, 3, 101, 112])]),
         @asn1.bit_string(k.bytes()),
       ])
+    // The key bits are the raw `pk` (RFC 9881 §4) and the identifier carries no parameters.
+    MlDsa(k) =>
+      @asn1.sequence([
+        @asn1.sequence([@asn1.oid(ml_dsa_arcs(k.kind()))]),
+        @asn1.bit_string(k.bytes()),
+      ])
   }
+}
+
+///|
+/// Whether this SubjectPublicKeyInfo carries `key`: the same algorithm and the same key material.
+/// The digest or scheme a key was built with is not key material, an absent parameter and a NULL
+/// one both read as no parameters, and a curve is compared as the identifier it is named by.
+///
+/// This is how a private key is matched to a certificate — `cert.spki.holds(key.public())` — the
+/// question `PrivateKey::public` raises about, answered without building a key a second time.
+pub fn Spki::holds(self : Spki, key : Key) -> Bool {
+  let held = self.key() catch { _ => return false }
+  held == key
 }
 
 ///|

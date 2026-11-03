@@ -2,18 +2,21 @@
 // Service identity, RFC 6125: https://www.rfc-editor.org/rfc/rfc6125
 // PEM, RFC 7468: https://www.rfc-editor.org/rfc/rfc7468
 // Private keys, RFC 5958, RFC 5915, RFC 8017 §A.1.2: https://www.rfc-editor.org/rfc/rfc5958
+// ML-DSA keys and signatures, RFC 9881: https://www.rfc-editor.org/rfc/rfc9881
 //
-// Read a certificate down to its extensions, check its signature under RSA, ECDSA or Ed25519,
-// match it against a host name or address, and validate a chain to a set of trust anchors.
-// Writes the self-signed P-256 certificate a TLS server needs, and reads its private key.
+// Read a certificate down to its extensions, check its signature under RSA, ECDSA, Ed25519 or
+// ML-DSA, match it against a host name or address, and validate a chain to a set of trust
+// anchors. Writes the self-signed certificate a TLS server needs, and reads its private key.
 import {
   "moonbitstack/mooncred/pbe",
   "moonbitstack/mooncrypt/asn1",
   "moonbitstack/mooncrypt/curve",
   "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/pq/mldsa",
   "moonbitstack/mooncrypt/rsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
   "moonbitstack/mooncrypt/sign/ed25519",
+  "moonbitstack/moondate",
   "moonbitstack/mooncrypt/spec",
   "moonbitstack/moonbase/base16",
   "moonbitstack/moonbase/base64",

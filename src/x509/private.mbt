@@ -8,6 +8,7 @@ pub(all) enum PrivateKey {
   Rsa(@rsa.PrivateKey)
   Ec(@ecdsa.PrivateKey)
   Ed25519(@ed25519.PrivateKey)
+  MlDsa(@mldsa.PrivateKey)
 }
 
 ///|
@@ -94,12 +95,7 @@ pub fn PrivateKey::pem_encrypted(
 pub fn PrivateKey::pkcs8(self : PrivateKey) -> Bytes raise @asn1.Refused {
   match self {
     Ec(k) => {
-      let arcs = match k.curve() {
-        P256 => [1, 2, 840, 10045, 3, 1, 7]
-        P384 => [1, 3, 132, 0, 34]
-        P521 => [1, 3, 132, 0, 35]
-        Secp256k1 => [1, 3, 132, 0, 10]
-      }
+      let arcs = curve_arcs(k.curve())
       let inner = @asn1.sequence([
         @asn1.integer(b"\x01"),
         @asn1.octet_string(k.bytes()),
@@ -115,6 +111,14 @@ pub fn PrivateKey::pkcs8(self : PrivateKey) -> Bytes raise @asn1.Refused {
       @asn1.sequence([
         @asn1.integer(b"\x00"),
         @asn1.sequence([@asn1.oid([1, 3, 101, 112])]),
+        @asn1.octet_string(@asn1.octet_string(k.bytes())),
+      ])
+    // RFC 9881 §6 allows the seed, the expanded key, or both; what this holds is the expanded
+    // key, since a seed cannot be read back out of it, so that is the form written.
+    MlDsa(k) =>
+      @asn1.sequence([
+        @asn1.integer(b"\x00"),
+        @asn1.sequence([@asn1.oid(ml_dsa_arcs(k.kind()))]),
         @asn1.octet_string(@asn1.octet_string(k.bytes())),
       ])
     Rsa(_) =>
@@ -166,25 +170,28 @@ pub fn PrivateKey::pkcs8_pem(self : PrivateKey) -> String raise @asn1.Refused {
 }
 
 ///|
-/// The public half: what the certificate for this key carries, so `key.public() == spki.key()`
+/// The public half: what the certificate for this key carries, so `cert.spki.holds(key.public())`
 /// tells whether a certificate and a key belong together.
 pub fn PrivateKey::public(self : PrivateKey) -> Key {
   match self {
     Rsa(k) => Rsa(k.public())
     Ec(k) => Ec(k.public())
     Ed25519(k) => Ed25519(k.public())
+    MlDsa(k) => MlDsa(k.public_key())
   }
 }
 
 ///|
 /// Two public keys are equal when their key material is: modulus and exponent, curve and point,
-/// or the Ed25519 octets. The digest an RSA or EC key was built with is not key material.
+/// or the Ed25519 or ML-DSA octets. The digest an RSA or EC key was built with is not key
+/// material.
 pub impl Eq for Key with fn equal(a, b) {
   match (a, b) {
     (Rsa(x), Rsa(y)) =>
       x.modulus() == y.modulus() && x.exponent() == y.exponent()
     (Ec(x), Ec(y)) => x.curve() == y.curve() && x.bytes() == y.bytes()
     (Ed25519(x), Ed25519(y)) => x.bytes() == y.bytes()
+    (MlDsa(x), MlDsa(y)) => x.kind() == y.kind() && x.bytes() == y.bytes()
     _ => false
   }
 }
@@ -203,35 +210,95 @@ fn pkcs8(items : Array[@asn1.Tlv]) -> PrivateKey raise @asn1.Refused {
   }
   let (alg, params) = read_alg(items[1])
   let inner = items[2].octets()
-  match alg {
-    a if a == oid_rsa => pkcs1(rsa_items(inner))
-    a if a == oid_ec_key => {
-      guard params is Some(p) else {
-        raise @asn1.Malformed("EC key without a named curve")
+  match ml_dsa_of(alg) {
+    Some(kind) => ml_dsa_pkcs8(kind, params, inner, items[3:])
+    None =>
+      match alg {
+        a if a == oid_rsa => pkcs1(rsa_items(inner))
+        a if a == oid_ec_key => {
+          guard params is Some(p) else {
+            raise @asn1.Malformed("EC key without a named curve")
+          }
+          let key = @asn1.only(inner)
+          if key.tag != 0x30 {
+            raise @asn1.Malformed("ECPrivateKey is not a SEQUENCE")
+          }
+          sec1(key.items(), Some(curve_of(Some(@asn1.only(p).oid()))))
+        }
+        a if a == oid_ed25519 => {
+          if params is Some(_) {
+            raise @asn1.Malformed("Ed25519 key with parameters")
+          }
+          let seed = @asn1.only(inner).octets()
+          let key = @ed25519.PrivateKey::new(seed) catch {
+            _ => raise @asn1.Malformed("Ed25519 seed is not 32 octets")
+          }
+          match public_bits(items[3:], 1) {
+            Some(bits) if bits != key.public().bytes() =>
+              raise @asn1.Malformed("Ed25519 public key is not the seed's own")
+            _ => ()
+          }
+          Ed25519(key)
+        }
+        a => raise @asn1.Unsupported("private key algorithm " + a)
       }
-      let key = @asn1.only(inner)
-      if key.tag != 0x30 {
-        raise @asn1.Malformed("ECPrivateKey is not a SEQUENCE")
-      }
-      sec1(key.items(), Some(curve_of(Some(@asn1.only(p).oid()))))
-    }
-    a if a == oid_ed25519 => {
-      if params is Some(_) {
-        raise @asn1.Malformed("Ed25519 key with parameters")
-      }
-      let seed = @asn1.only(inner).octets()
-      let key = @ed25519.PrivateKey::new(seed) catch {
-        _ => raise @asn1.Malformed("Ed25519 seed is not 32 octets")
-      }
-      match public_bits(items[3:], 1) {
-        Some(bits) if bits != key.public().bytes() =>
-          raise @asn1.Malformed("Ed25519 public key is not the seed's own")
-        _ => ()
-      }
-      Ed25519(key)
-    }
-    a => raise @asn1.Unsupported("private key algorithm " + a)
   }
+}
+
+///|
+/// An ML-DSA private key from its PKCS#8 form (RFC 9881 §6). The octets inside are a CHOICE of
+/// three shapes, told apart by their tags rather than by their length: `[0]` the 32-octet seed,
+/// an OCTET STRING the expanded key, or a SEQUENCE holding both.
+///
+/// A key carrying both is expanded from the seed and compared, and one whose two halves disagree
+/// is refused (§8.2): the pair is two readings of one key, and a file that holds two keys has no
+/// key in it.
+fn ml_dsa_pkcs8(
+  kind : @mldsa.Kind,
+  params : BytesView?,
+  inner : BytesView,
+  after : ArrayView[@asn1.Tlv],
+) -> PrivateKey raise @asn1.Refused {
+  if params is Some(_) {
+    raise @asn1.Malformed("ML-DSA key with parameters")
+  }
+  let choice = @asn1.only(inner)
+  let key = match choice.tag {
+    0x80 =>
+      // IMPLICIT [0]: the seed alone, which is the form the standard recommends for storage.
+      @mldsa.PrivateKey::from_seed(kind~, choice.value) catch {
+        _ => raise @asn1.Malformed("ML-DSA seed is not 32 octets")
+      }
+    0x04 =>
+      @mldsa.PrivateKey::new(kind~, choice.value) catch {
+        _ =>
+          raise @asn1.Malformed(
+            "ML-DSA expanded key of the wrong length for its set",
+          )
+      }
+    0x30 => {
+      let halves = choice.items()
+      if halves.length() != 2 || halves[0].tag != 0x04 || halves[1].tag != 0x04 {
+        raise @asn1.Malformed("ML-DSA key is not a seed and an expanded key")
+      }
+      let key = @mldsa.PrivateKey::from_seed(kind~, halves[0].value) catch {
+        _ => raise @asn1.Malformed("ML-DSA seed is not 32 octets")
+      }
+      if key.bytes() != halves[1].value.to_owned() {
+        raise @asn1.Malformed(
+          "the ML-DSA seed does not expand to the key beside it",
+        )
+      }
+      key
+    }
+    _ => raise @asn1.Malformed("ML-DSA private key in no known form")
+  }
+  match public_bits(after, 1) {
+    Some(bits) if bits != key.public_key().bytes() =>
+      raise @asn1.Malformed("ML-DSA public key is not the private key's own")
+    _ => ()
+  }
+  MlDsa(key)
 }
 
 ///|

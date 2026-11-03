@@ -88,3 +88,22 @@ test "csr: asks_for tells the request's key from another" {
   assert_true(req.asks_for(key.public()))
   assert_false(Request::pem(request_rsa).asks_for(key.public()))
 }
+
+///|
+/// A request under an ML-DSA key: the identifier is the one RFC 9881 §2 registers, the signature
+/// is the pure ML-DSA one over the TBS, and the key the request asks to have certified is the key
+/// that signed it.
+test "csr: a request under an ML-DSA key is written and verifies" {
+  let seed = @base16.decode(
+    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  )
+  let key : @x509.PrivateKey = MlDsa(
+    @mldsa.PrivateKey::from_seed(kind=D65, seed),
+  )
+  let der = self_signed(key, subject=@x509.common_name("pqc.example.com"))
+  let req = parse(der[:])
+  assert_eq(req.alg, "2.16.840.1.101.3.4.3.18")
+  assert_eq(req.sig.bytes.length(), 3309)
+  assert_true(req.verified())
+  assert_true(req.asks_for(key.public()))
+}

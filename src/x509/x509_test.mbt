@@ -34,7 +34,11 @@ test "x509: a self-signed P-256 certificate carries a valid ES256 signature over
     "233333333333333333333333333333333333333333333333333333333333eeff",
   )
   let cert = @x509.self_signed(
-    key, b"\x0d\x23\x33", "lfanke.example", "250101000000Z", "350101000000Z",
+    key=Ec(key),
+    cn="lfanke.example",
+    serial=b"\x0d\x23\x33",
+    not_before=1735689600L,
+    not_after=2051222400L,
   )
   // Byte-exact against the DER that OpenSSL validated (deterministic RFC 6979 signing): any
   // change to the ASN.1 assembly or the signature moves these bytes.
@@ -44,17 +48,10 @@ test "x509: a self-signed P-256 certificate carries a valid ES256 signature over
       "308201203081c7a00302010202030d2333300a06082a8648ce3d04030230193117301506035504030c0e6c66616e6b652e6578616d706c65301e170d3235303130313030303030305a170d3335303130313030303030305a30193117301506035504030c0e6c66616e6b652e6578616d706c653059301306072a8648ce3d020106082a8648ce3d03010703420004a115f872600665c589ff3f4687e29794b9af522dcf6920265fb76db77a5a093a7499dd913c1f2e028600cd29f3f1e34bab9db77349d7ffba7c99e732a1d96f0f300a06082a8648ce3d0403020348003045022100f68eb723ff01316c1dcdfda7fe869c92b27c2a0484f467a734cca98723b8146402205b5d439b9180abde78c096dc46932dad312abac9e2d79acca457e7830668b2e0",
     ),
   )
-  // The signature is valid over the TBSCertificate: rebuild the TBS (deterministic RFC 6979
-  // signing) and verify with the certificate's own public key — a self-signature.
-  let tbs = @x509.tbs_of(
-    b"\x0d\x23\x33",
-    "lfanke.example",
-    "250101000000Z",
-    "350101000000Z",
-    key.public(),
-  )
-  let sig = key.sign(tbs[:])
-  assert_eq(key.public().verify(tbs[:], sig[:]), true)
+  // The signature is valid over the TBSCertificate: sign the TBS the parser kept (deterministic
+  // RFC 6979 signing) and verify with the certificate's own public key — a self-signature.
+  let sig = key.sign(@x509.parse(cert[:]).tbs)
+  assert_eq(key.public().verify(@x509.parse(cert[:]).tbs, sig[:]), true)
   // The DER certificate rides the TLS 1.3 Certificate message and comes back out intact.
 }
 
@@ -155,8 +152,12 @@ test "x509: a real RSA certificate, read down to its extensions" {
   // Self-signed with sha256WithRSAEncryption: its own key checks it, a P-256 key cannot.
   assert_eq(cert.signed_by(cert.spki), true)
   let p256 = @x509.Spki::read(
-    @x509.spki_of(
-      key_of("0000000000000000000000000000000000000000000000000000000000233333").public(),
+    @x509.Spki::encode(
+      Ec(
+        key_of(
+          "0000000000000000000000000000000000000000000000000000000000233333",
+        ).public(),
+      ),
     )[:],
   )
   assert_eq(cert.signed_by(p256), false)
@@ -243,7 +244,11 @@ test "x509: the generator's certificate parses back into the fields it was built
     "233333333333333333333333333333333333333333333333333333333333eeff",
   )
   let der = @x509.self_signed(
-    key, b"\x0d\x23\x33", "lfanke.example", "250101000000Z", "350101000000Z",
+    key=Ec(key),
+    cn="lfanke.example",
+    serial=b"\x0d\x23\x33",
+    not_before=1735689600L,
+    not_after=2051222400L,
   )
   let cert = @x509.parse(der[:])
   assert_eq(cert.version, 3)
@@ -253,16 +258,16 @@ test "x509: the generator's certificate parses back into the fields it was built
   assert_eq(cert.subject.cn(), Some("lfanke.example"))
   assert_eq(cert.validity, { not_before: 1735689600L, not_after: 2051222400L, })
   assert_eq(cert.spki.p256().bytes(), key.public().bytes())
-  // The bytes the parser says the signature covers are the ones the generator signed.
+  // The bytes the parser says the signature covers are the ones the generator signed: signing
+  // them again under the same key gives the same signature (RFC 6979), and the DER wrapped around
+  // it is the one the certificate carries.
+  let raw = key.sign(cert.tbs)
   assert_eq(
-    cert.tbs.to_owned(),
-    @x509.tbs_of(
-      b"\x0d\x23\x33",
-      "lfanke.example",
-      "250101000000Z",
-      "350101000000Z",
-      key.public(),
-    ),
+    @asn1.sequence([
+      @asn1.integer(raw[0:32].to_owned()),
+      @asn1.integer(raw[32:64].to_owned()),
+    ]),
+    cert.sig.bytes,
   )
   assert_eq(cert.signed_by(cert.spki), true)
   // It carries no subjectAltName, so it is an identity for no host at all.
@@ -279,17 +284,28 @@ fn with_exts(
   exts : Array[Bytes],
   tag~ : Int32 = 0xa3,
 ) -> Bytes {
+  let alg = ecdsa_sha256()
   let tbs = @asn1.sequence([
     @asn1.explicit(0, @asn1.integer(b"\x02")),
     @asn1.integer(b"\x01"),
-    @x509.alg_ecdsa_sha256(),
+    alg,
     @x509.common_name("a.example"),
-    @x509.validity_of("250101000000Z", "350101000000Z"),
+    @asn1.sequence([
+      @asn1.tlv(0x17, b"250101000000Z"),
+      @asn1.tlv(0x17, b"350101000000Z"),
+    ]),
     @x509.common_name("a.example"),
-    @x509.spki_of(pub_key),
+    @x509.Spki::encode(Ec(pub_key)),
     @asn1.tlv(tag, @asn1.sequence(exts)),
   ])
-  @asn1.sequence([tbs, @x509.alg_ecdsa_sha256(), @asn1.bit_string(b"\x00")])
+  @asn1.sequence([tbs, alg, @asn1.bit_string(b"\x00")])
+}
+
+///|
+/// The ecdsa-with-SHA256 AlgorithmIdentifier (RFC 5758 §3.2): a SEQUENCE of just the OID, ECDSA
+/// taking no parameters.
+fn ecdsa_sha256() -> Bytes {
+  @asn1.sequence([@asn1.oid([1, 2, 840, 10045, 4, 3, 2])])
 }
 
 ///|
@@ -408,9 +424,18 @@ test "x509: a certificate is refused unless it is exactly one well-formed certif
   // bytes. A peer that can make them differ picks the algorithm a verifier reads.
   assert_eq(
     refusal(() => {
-      let tbs = @x509.tbs_of(
-        b"\x01", "a.example", "250101000000Z", "350101000000Z", pub_key,
-      )
+      let tbs = @asn1.sequence([
+        @asn1.explicit(0, @asn1.integer(b"\x02")),
+        @asn1.integer(b"\x01"),
+        ecdsa_sha256(),
+        @x509.common_name("a.example"),
+        @asn1.sequence([
+          @asn1.tlv(0x17, b"250101000000Z"),
+          @asn1.tlv(0x17, b"350101000000Z"),
+        ]),
+        @x509.common_name("a.example"),
+        @x509.Spki::encode(Ec(pub_key)),
+      ])
       let swapped = @asn1.sequence([
         tbs,
         @asn1.sequence([@asn1.oid([1, 2, 840, 113549, 1, 1, 11]), @asn1.null()]),

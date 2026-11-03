@@ -35,6 +35,12 @@ keywords = [
   "oauth2",
   "rfc7519",
   "rfc5280",
+  "rfc9881",
+  "ml-dsa",
+  "dilithium",
+  "post-quantum",
+  "post-quantum-cryptography",
+  "fips204",
   "moonbit",
 ]
 
@@ -42,7 +48,8 @@ description = "Credentials for MoonBit: JWT, JWK and X.509."
 
 import {
   "moonbitstack/moonbase@0.4.2",
-  "moonbitstack/mooncrypt@0.4.6",
+  "moonbitstack/mooncrypt@0.4.8",
+  "moonbitstack/moondate@0.1.0",
   "moonbitstack/moonjson@0.4.2",
 }
 

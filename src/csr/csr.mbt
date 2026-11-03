@@ -167,55 +167,13 @@ pub fn Request::asks_for(self : Request, key : Key) -> Bool {
 }
 
 ///|
-/// The signature scheme each kind of key is written with here: ECDSA and RSA with SHA-256, and
-/// Ed25519 as itself. The request names the scheme in its AlgorithmIdentifier and the signature
-/// is made with the same one, which is the pairing a verifier relies on.
-fn scheme_of(key : @x509.PrivateKey) -> Bytes {
-  match key {
-    Rsa(_) =>
-      @asn1.sequence([@asn1.oid([1, 2, 840, 113549, 1, 1, 11]), @asn1.null()])
-    Ec(_) => @asn1.sequence([@asn1.oid([1, 2, 840, 10045, 4, 3, 2])])
-    Ed25519(_) => @asn1.sequence([@asn1.oid([1, 3, 101, 112])])
-  }
-}
-
-///|
-/// Sign `tbs` under `key`, in the scheme `scheme_of` names for it. An EC key is re-created with
-/// SHA-256 rather than signed with whatever digest it was built with, so the digest the
-/// AlgorithmIdentifier advertises is the digest the signature used.
-fn sign(key : @x509.PrivateKey, tbs : Bytes) -> Bytes raise @asn1.Refused {
-  match key {
-    Rsa(k) => k.with_scheme(digest=@rsa.Sha256, scheme=@rsa.Pkcs1).sign(tbs[:])
-    Ec(k) => {
-      let signer = @ecdsa.PrivateKey::with_hash(
-        k.bytes(),
-        () => (@sha2.Hasher::new(kind=Sha256) : &@spec.Hash),
-        curve=k.curve(),
-      ) catch {
-        _ => raise @asn1.Malformed("EC key cannot be re-read for signing")
-      }
-      let raw = signer.sign(tbs[:])
-      let size = k.curve().size()
-      if raw.length() != size * 2 {
-        raise @asn1.Malformed("ECDSA signature is not two scalars")
-      }
-      // RFC 3279 §2.2.3: the signature is the DER of SEQUENCE { r, s }, not the concatenation
-      // every other ECDSA API hands back.
-      @asn1.sequence([
-        @asn1.integer(raw[0:size].to_owned()),
-        @asn1.integer(raw[size:size * 2].to_owned()),
-      ])
-    }
-    Ed25519(k) => k.sign(tbs[:])
-  }
-}
-
-///|
 /// Write a certification request for a key in hand (RFC 2986 §4).
 ///
 /// `subject` is the DER of a `Name` — `@x509.common_name` for the usual case — and `exts` the
 /// extensions to ask for, which travel in an `extensionRequest` attribute. The request is signed
-/// by `key`, so the CA that reads it can tell the requester holds the private half.
+/// by `key`, so the CA that reads it can tell the requester holds the private half; the signature
+/// algorithm is the one `@x509.signature_algorithm` names for that key, so a request from an
+/// ML-DSA key is written the way RFC 9881 §3 writes its signatures.
 pub fn self_signed(
   key : @x509.PrivateKey,
   subject~ : Bytes,
@@ -240,8 +198,9 @@ pub fn self_signed(
     @x509.Spki::encode(key.public()),
     attributes,
   ])
-  let sig = sign(key, tbs)
-  @asn1.sequence([tbs, scheme_of(key), @asn1.bit_string(sig)])
+  let alg = @x509.signature_algorithm(key)
+  let sig = @x509.signature_value(key, tbs)
+  @asn1.sequence([tbs, alg, @asn1.bit_string(sig)])
 }
 
 ///|

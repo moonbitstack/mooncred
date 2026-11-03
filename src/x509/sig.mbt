@@ -7,6 +7,7 @@ priv enum Scheme {
   Pss(@rsa.Digest)
   Ecdsa(@sha2.Kind)
   Eddsa
+  MlDsa(@mldsa.Kind)
 }
 
 ///|
@@ -94,9 +95,23 @@ fn pss_params(params : BytesView?) -> @rsa.Digest raise @asn1.Refused {
 /// The scheme a signature AlgorithmIdentifier names. SHA-1 and SHA-224 signatures are refused:
 /// a trust anchor's own signature is never checked, so the only place SHA-1 survives in a
 /// modern chain needs no support here.
+///
+/// The ML-DSA identifiers are the same three that name the public keys (RFC 9881 §3), with their
+/// parameters absent; the signature they cover is the pure one — the `ctx` of FIPS 204 §5.2 is the
+/// empty string, which is what `@mldsa` signs with by default. HashML-DSA is refused, as §8.3
+/// requires: its identifiers would let one key be read as two algorithms.
 fn scheme_of(oid : String, params : BytesView?) -> Scheme raise @asn1.Refused {
   let none = params is None
   let null = params is Some(p) && p.to_owned() == b"\x05\x00"
+  match ml_dsa_of(oid) {
+    Some(kind) => {
+      if !none {
+        raise @asn1.Malformed("signature algorithm " + oid + " with parameters")
+      }
+      return MlDsa(kind)
+    }
+    None => ()
+  }
   match oid {
     "1.2.840.113549.1.1.11" if none || null => Pkcs1(Sha256)
     "1.2.840.113549.1.1.12" if none || null => Pkcs1(Sha384)
@@ -154,10 +169,10 @@ fn ecdsa_raw(sig : BytesView, size : Int32) -> Bytes? raise @asn1.Refused {
 /// revocation list or a response carries them.
 ///
 /// RSA PKCS#1 v1.5 and PSS with SHA-256, SHA-384 or SHA-512, ECDSA with the same three digests
-/// on any of the four curves, and Ed25519. An algorithm outside that set raises `Unsupported`
-/// rather than returning false, so a caller cannot read "not checked" as "checked and bad". A
-/// key of the wrong kind for the algorithm returns false: no signature by that algorithm
-/// verifies under it.
+/// on any of the four curves, Ed25519, and ML-DSA at the three sets of RFC 9881. An algorithm
+/// outside that set raises `Unsupported` rather than returning false, so a caller cannot read
+/// "not checked" as "checked and bad". A key of the wrong kind for the algorithm returns false:
+/// no signature by that algorithm verifies under it.
 pub fn signature_ok(
   tbs : BytesView,
   alg~ : String,
@@ -187,6 +202,9 @@ pub fn signature_ok(
       verifying.verify(tbs, raw[:])
     }
     (Eddsa, Ed25519(k)) => k.verify(tbs, bytes)
+    // A signature under a set other than the key's is not a signature: FIPS 204 fixes the
+    // signature length per set, so the two cannot be swapped.
+    (MlDsa(kind), MlDsa(k)) => k.kind() == kind && k.verify(tbs, bytes)
     _ => false
   }
 }

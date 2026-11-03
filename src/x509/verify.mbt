@@ -40,6 +40,10 @@ pub(all) suberror Refused {
   Algorithm(at~ : Int32, oid~ : String)
   /// The key that signed the certificate at `at` is an RSA key below the policy's `bits`.
   Weak(at~ : Int32)
+  /// The key the certificate at `at` carries cannot do what its `keyUsage` asserts: an ML-DSA
+  /// key enciphers nothing and agrees on no key, so a certificate for one that claims it does
+  /// is claiming a use the key has not (RFC 9881 §5).
+  KeyUsage(at~ : Int32)
   /// More name-constraint comparisons than the policy allows: a CA with thousands of subtrees
   /// over a leaf with thousands of names is a quadratic amount of work.
   Comparisons(limit~ : Int32)
@@ -213,6 +217,9 @@ pub fn verify(
   if leaf.exts.ca {
     raise Authority(at=0)
   }
+  if !key_usage_fits(leaf.spki, leaf.exts.key_usage) {
+    raise KeyUsage(at=0)
+  }
   if !allows(leaf.exts.eku, policy.usage) {
     raise Purpose(at=0)
   }
@@ -261,6 +268,19 @@ fn allows(eku : Array[String]?, usage : Usage) -> Bool {
     (None, _) | (_, None) => true
     (Some(list), Some(oid)) => list.contains(oid) || list.contains(eku_any)
   }
+}
+
+///|
+/// Whether a certificate's keyUsage restricts its key to what the key can actually do. Only
+/// ML-DSA is held to it here, because only ML-DSA has the rule written down (RFC 9881 §5): the
+/// bits for enciphering and for agreeing on a key are refused, while an absent keyUsage says
+/// nothing and is allowed.
+fn key_usage_fits(spki : Spki, ku : @asn1.Bits?) -> Bool {
+  guard ku is Some(bits) else { return true }
+  let key = spki.key() catch { _ => return true }
+  guard key is MlDsa(_) else { return true }
+  // keyEncipherment, dataEncipherment, keyAgreement, encipherOnly, decipherOnly.
+  !(bits.get(2) || bits.get(3) || bits.get(4) || bits.get(7) || bits.get(8))
 }
 
 ///|
@@ -409,6 +429,9 @@ fn Search::issuer_ok(
   }
   if cand.exts.path_len is Some(n) && below > n {
     raise Authority(at~)
+  }
+  if !key_usage_fits(cand.spki, cand.exts.key_usage) {
+    raise KeyUsage(at~)
   }
   if !allows(cand.exts.eku, self.policy.usage) {
     raise Purpose(at~)
@@ -677,6 +700,7 @@ pub impl Show for Refused with fn output(self, logger) {
       "certificate \{at} is signed with an unsupported algorithm " + oid
     Weak(at~) =>
       "certificate \{at} is signed with an RSA key below the policy's bits"
+    KeyUsage(at~) => "certificate \{at} asserts a key usage its key cannot have"
     Comparisons(limit~) => "more than \{limit} name-constraint comparisons"
   }
   logger.write_string(text)

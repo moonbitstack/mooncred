@@ -6,16 +6,13 @@ import {
   "moonbitlang/core/debug",
   "moonbitstack/mooncred/pbe",
   "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/pq/mldsa",
   "moonbitstack/mooncrypt/rsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
   "moonbitstack/mooncrypt/sign/ed25519",
 }
 
 // Values
-pub fn alg_ec_key() -> Bytes
-
-pub fn alg_ecdsa_sha256() -> Bytes
-
 pub fn algorithm(BytesView) -> (String, Bytes?) raise @asn1.Refused
 
 pub fn common_name(String) -> Bytes
@@ -44,15 +41,13 @@ pub fn pems(String, label? : String) -> Array[Bytes] raise @asn1.Refused
 
 pub let policy : Policy
 
-pub fn self_signed(@ecdsa.PrivateKey, Bytes, String, String, String) -> Bytes
+pub fn self_signed(key~ : PrivateKey, cn~ : String, serial~ : Bytes, not_before~ : Int64, not_after~ : Int64, exts? : Exts) -> Bytes raise @asn1.Refused
+
+pub fn signature_algorithm(PrivateKey) -> Bytes
 
 pub fn signature_ok(BytesView, alg~ : String, params~ : Bytes?, sig~ : @asn1.Bits, key~ : Spki) -> Bool raise @asn1.Refused
 
-pub fn spki_of(@ecdsa.PublicKey) -> Bytes
-
-pub fn tbs_of(Bytes, String, String, String, @ecdsa.PublicKey) -> Bytes
-
-pub fn validity_of(String, String) -> Bytes
+pub fn signature_value(PrivateKey, Bytes) -> Bytes raise @asn1.Refused
 
 pub fn verify(ArrayView[Bytes], Roots, now~ : Int64, host? : String, policy? : Policy) -> Array[Cert] raise Refused
 
@@ -72,6 +67,7 @@ pub(all) suberror Refused {
   Constraint(at~ : Int32, name~ : String)
   Algorithm(at~ : Int32, oid~ : String)
   Weak(at~ : Int32)
+  KeyUsage(at~ : Int32)
   Comparisons(limit~ : Int32)
 } derive(Eq, @debug.Debug)
 pub fn Refused::equal(Self, Self) -> Bool
@@ -149,6 +145,7 @@ pub(all) enum Key {
   Rsa(@rsa.PublicKey)
   Ec(@ecdsa.PublicKey)
   Ed25519(@ed25519.PublicKey)
+  MlDsa(@mldsa.PublicKey)
 }
 pub fn Key::equal(Self, Self) -> Bool
 pub fn Key::not_equal(Self, Self) -> Bool
@@ -180,6 +177,7 @@ pub(all) enum PrivateKey {
   Rsa(@rsa.PrivateKey)
   Ec(@ecdsa.PrivateKey)
   Ed25519(@ed25519.PrivateKey)
+  MlDsa(@mldsa.PrivateKey)
 }
 pub fn PrivateKey::encrypt(Self, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32) -> Bytes raise @pbe.Refused
 pub fn PrivateKey::encrypt_pem(Self, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32) -> String raise @pbe.Refused
@@ -207,6 +205,7 @@ pub(all) struct Spki {
 } derive(Eq, @debug.Debug)
 pub fn Spki::encode(Key) -> Bytes
 pub fn Spki::equal(Self, Self) -> Bool
+pub fn Spki::holds(Self, Key) -> Bool
 pub fn Spki::key(Self) -> Key raise @asn1.Refused
 pub fn Spki::not_equal(Self, Self) -> Bool
 pub fn Spki::p256(Self) -> @ecdsa.PublicKey raise @asn1.Refused

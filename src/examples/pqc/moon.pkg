@@ -1,0 +1,8 @@
+// A post-quantum certificate, written out for openssl to check: `moon run src/examples/mldsa`.
+pkgtype(kind: "executable")
+
+import {
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/pq/mldsa",
+  "moonbitstack/moonbase/base16",
+}

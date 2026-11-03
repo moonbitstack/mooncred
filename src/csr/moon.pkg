@@ -6,13 +6,11 @@
 import {
   "moonbitstack/mooncred/x509",
   "moonbitstack/mooncrypt/asn1",
-  "moonbitstack/mooncrypt/hash/sha2",
-  "moonbitstack/mooncrypt/rsa",
-  "moonbitstack/mooncrypt/sign/ecdsa",
-  "moonbitstack/mooncrypt/spec",
 }
 
 // The fixtures are PEM, and the tampered one is base64 without an envelope.
 import {
+  "moonbitstack/moonbase/base16",
   "moonbitstack/moonbase/base64",
+  "moonbitstack/mooncrypt/pq/mldsa",
 } for "wbtest"

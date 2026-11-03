@@ -16,6 +16,7 @@ import base64
 import pathlib
 import shutil
 import subprocess
+import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -365,14 +366,133 @@ def gen_revocation(work):
     write_vectors(SRC / "examples" / "guide" / "files.mbt", {k: values[k] for k in shown})
 
 
+# ------------------------------------------------------------------------- ML-DSA
+
+
+def der(tag, body):
+    if len(body) < 0x80:
+        return bytes([tag, len(body)]) + body
+    size = len(body).to_bytes((len(body).bit_length() + 7) // 8, "big")
+    return bytes([tag, 0x80 | len(size)]) + size + body
+
+
+def mldsa_authority(work, slug, common_name, level, days=3650):
+    """A self-signed ML-DSA authority: the root of a chain OpenSSL signs and this library checks."""
+    key = work / f"{slug}.key"
+    run("genpkey", "-algorithm", f"ML-DSA-{level}", "-out", key)
+    pem = work / f"{slug}.pem"
+    run(
+        "req", "-x509", "-new", "-key", str(key), "-days", str(days),
+        "-subj", f"/CN={common_name}",
+        "-addext", "basicConstraints=critical,CA:TRUE",
+        "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+        "-out", str(pem),
+    )
+    return key, pem
+
+
+def mldsa_leaf(work, slug, common_name, ca_key, ca_pem, level="65", days=365):
+    key = work / f"{slug}.key"
+    run("genpkey", "-algorithm", f"ML-DSA-{level}", "-out", key)
+    csr = work / f"{slug}.csr"
+    run("req", "-new", "-key", str(key), "-subj", f"/CN={common_name}", "-out", str(csr))
+    ext = work / f"{slug}.ext"
+    ext.write_text(
+        "[ default ]\n"
+        "basicConstraints=critical,CA:FALSE\n"
+        "keyUsage=critical,digitalSignature\n"
+        f"subjectAltName=DNS:{common_name}\n",
+        encoding="utf-8",
+    )
+    cert = work / f"{slug}.pem"
+    run(
+        "x509", "-req", "-in", str(csr), "-CA", str(ca_pem), "-CAkey", str(ca_key),
+        "-CAcreateserial", "-days", str(days), "-extfile", str(ext),
+        "-extensions", "default", "-out", str(cert),
+    )
+    return key, cert
+
+
+def tlvs(blob):
+    """A DER body split into its top-level elements, each as (tag, contents, whole)."""
+    out = []
+    offset = 0
+    while offset < len(blob):
+        tag = blob[offset]
+        length = blob[offset + 1]
+        start = offset + 2
+        if length & 0x80:
+            size = length & 0x7F
+            length = int.from_bytes(blob[start:start + size], "big")
+            start += size
+        out.append((tag, blob[start:start + length], blob[offset:start + length]))
+        offset = start + length
+    return out
+
+
+def pkcs8_parts(blob):
+    """The version, the algorithm and the CHOICE inside a PrivateKeyInfo, for the rewrites below."""
+    _, outer, _ = tlvs(blob)[0]
+    version, alg, wrapped = tlvs(outer)
+    return version[2], alg[2], wrapped[1]
+
+
+def gen_mldsa(work):
+    """A chain OpenSSL signs under ML-DSA keys, and the private-key shapes RFC 9881 §6 allows.
+
+    The leaf's own key is written both as OpenSSL writes it — PKCS#8 holding the seed and the
+    expanded key — and as the standard recommends, the seed alone, which no OpenSSL command
+    produces. The third key is the second one with a byte of the seed changed: a file whose two
+    halves disagree, which §8.2 says to refuse.
+    """
+    ca_key, ca_pem = mldsa_authority(work, "mldsa-ca", "Mooncred ML-DSA CA", 65)
+    key, cert = mldsa_leaf(work, "mldsa-leaf", "mldsa.example.com", ca_key, ca_pem)
+    values = {
+        "mldsa_ca": read(ca_pem).strip(),
+        "mldsa_leaf": read(cert).strip(),
+        "mldsa_key": read(key).strip(),
+    }
+    for level in (44, 87):
+        _, self_signed = mldsa_authority(work, f"mldsa-{level}", f"Mooncred ML-DSA-{level}", level)
+        values[f"mldsa_{level}"] = read(self_signed).strip()
+
+    plain = work / "mldsa-key.der"
+    run("pkey", "-in", str(key), "-outform", "DER", "-out", str(plain))
+    blob = plain.read_bytes()
+    version, alg, choice = pkcs8_parts(blob)
+    _, both, _ = tlvs(choice)[0]
+    halves = tlvs(both)
+    seed, expanded = halves[0][1], halves[1][1]
+    # The seed alone, the form RFC 9881 §6 recommends and OpenSSL never writes.
+    seeded = der(0x30, version + alg + der(0x04, der(0x80, seed)))
+    values["mldsa_seed_only"] = seeded.hex()
+    # Both halves again, with a byte of the seed changed: a file whose seed no longer expands to
+    # the key beside it, which §8.2 says to refuse rather than to pick a half of.
+    broken = bytearray(seed)
+    broken[0] ^= 0x01
+    values["mldsa_seed_tampered"] = der(
+        0x30,
+        version
+        + alg
+        + der(0x04, der(0x30, der(0x04, bytes(broken)) + der(0x04, expanded))),
+    ).hex()
+    write_vectors(SRC / "x509" / "mldsa_files_test.mbt", values)
+
+
 def main():
+    groups = {
+        "pbe": gen_pbe,
+        "csr": gen_csr,
+        "pkcs12": gen_pkcs12,
+        "jwe": gen_jwe,
+        "revocation": gen_revocation,
+        "mldsa": gen_mldsa,
+    }
+    wanted = sys.argv[1:] or list(groups)
     work = pathlib.Path(tempfile.mkdtemp(prefix="mooncred-"))
     try:
-        gen_pbe(work)
-        gen_csr(work)
-        gen_pkcs12(work)
-        gen_jwe(work)
-        gen_revocation(work)
+        for name in wanted:
+            groups[name](work)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 

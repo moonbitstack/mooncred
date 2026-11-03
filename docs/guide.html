@@ -280,13 +280,21 @@ let key = @ecdsa.PrivateKey::new(
     "C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721",
   ),
 )
+<span class="c">// The instants are seconds since the Unix epoch, the same unit a certificate's validity is</span>
+<span class="c">// read back in, and the extensions are what a client compares and obeys.</span>
 let der = @x509.self_signed(
-  key, b"\x01", "moonbitstack.example", "261029000000Z", "271029000000Z",
+  key=Ec(key),
+  cn="moonbitstack.example",
+  serial=b"\x01",
+  not_before=1793232000L,
+  not_after=1824768000L,
+  exts={ ..@x509.Exts::empty(), san: [Dns("moonbitstack.example")], },
 )
 let cert = @x509.parse(der)
 println(
   "self-signed \{cert.subject.cn().unwrap_or("?")}: \{cert.signed_by(cert.spki)}",
 )
+println("names its own host: \{cert.matches("moonbitstack.example")}")
 <span class="c">// What a CA would ask for instead: a request, signed by the same key.</span>
 let pem = @csr.self_signed_pem(
   Ec(key),
@@ -296,6 +304,7 @@ let request = @csr.Request::pem(pem)
 println("request verified: \{request.verified()}")
 println("asks for this key: \{request.asks_for(Ec(key.public()))}")<!-- /code:issue --></code></pre>
     <pre class="out"><!-- run:issue -->self-signed moonbitstack.example: true
+names its own host: true
 request verified: true
 asks for this key: true<!-- /run:issue --></pre>
     <footer class="foot"><span>RFC 2986</span><a class="next" href="#keys">next · keys at rest</a></footer>
