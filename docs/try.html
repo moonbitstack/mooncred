@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>mooncred — the desk</title>
+<meta name="description" content="Lay a certificate chain or a token on the desk: mooncred reads it, builds the path, checks the signature and says why it refused.">
+<meta name="theme-color" content="#171110">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14.2' fill='%238E2C21'/%3E%3Ccircle cx='16' cy='16' r='14.2' fill='none' stroke='%23541610' stroke-width='1.6' opacity='.7'/%3E%3Cpath d='M22 9.4A8.4 8.4 0 1 0 22 22.6 6.9 6.9 0 0 1 22 9.4Z' fill='%23F1E2C6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/letter.css">
+<script type="module" src="assets/scrollbar.js"></script>
+<style>
+  /* The desk's own stationery: a slip of paper to write on, a brass-edged field, the wax of a
+     verdict. Everything else is the letter's. */
+  .desk-form { margin: 1.5em 0 0; display: grid; gap: 14px; }
+  .fld { display: grid; gap: 6px; min-width: 0; }
+  .fld .lbl,
+  .chk span,
+  .report .k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  textarea, input[type="text"], input[type="datetime-local"], input[type="password"] {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    color: #241A10;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    background: rgba(255, 250, 236, .5);
+    border: 1px solid rgba(58, 42, 26, .22);
+    border-left: 3px solid rgba(201, 164, 106, .55);
+    border-radius: 0 2px 2px 0;
+    outline: none;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  textarea { min-height: 190px; resize: vertical; white-space: pre-wrap; overflow-wrap: anywhere; }
+  textarea:focus, input:focus { border-color: rgba(140, 42, 33, .55); background: rgba(255, 250, 236, .78); }
+  textarea::placeholder { color: rgba(87, 70, 47, .45); }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .chk { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+  .chk input { width: 15px; height: 15px; accent-color: var(--wax); margin: 0; }
+  .chk span { letter-spacing: .12em; text-transform: none; font-size: 12.5px; color: var(--ink-soft); }
+  .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 4px; }
+  button { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; cursor: pointer; }
+  .seal {
+    padding: 11px 22px 12px;
+    color: #F6E9D2;
+    background: linear-gradient(160deg, #9C3327, #7A2119);
+    border: 1px solid rgba(84, 22, 16, .9);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255, 226, 190, .28) inset, 0 2px 4px rgba(60, 20, 12, .28);
+  }
+  .seal:hover { background: linear-gradient(160deg, #A63A2D, #831F17); }
+  .seal:active { transform: translateY(1px); }
+  .ghost {
+    padding: 9px 2px 8px;
+    color: var(--ink-soft);
+    background: none;
+    border: 0;
+    border-bottom: 1px dotted rgba(87, 70, 47, .5);
+  }
+  .ghost:hover { color: var(--wax); }
+
+  .report { margin-top: 22px; }
+  .report:empty { display: none; }
+  .verdict {
+    margin: 0 0 16px;
+    padding: 12px 14px 12px 14px;
+    border: 1px solid rgba(58, 42, 26, .18);
+    border-left: 3px solid rgba(87, 70, 47, .5);
+    border-radius: 0 2px 2px 0;
+    background: rgba(255, 250, 236, .4);
+  }
+  .verdict.ok { border-left-color: #2F5D3A; background: rgba(47, 93, 58, .07); }
+  .verdict.no { border-left-color: var(--wax); background: rgba(140, 42, 33, .06); }
+  .verdict p { margin: 0; font-size: 15.5px; }
+  .verdict .code {
+    display: inline-block;
+    margin-top: 7px;
+    padding: 2px 7px 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #F6E9D2;
+    background: rgba(87, 70, 47, .82);
+    border-radius: 2px;
+  }
+  .verdict.no .code { background: rgba(140, 42, 33, .9); }
+  .verdict.ok .code { background: rgba(47, 93, 58, .9); }
+
+  .cards { display: grid; gap: 12px; }
+  .card {
+    padding: 12px 14px;
+    border: 1px solid rgba(58, 42, 26, .16);
+    border-top: 1px dashed rgba(58, 42, 26, .3);
+    background: rgba(255, 250, 236, .34);
+  }
+  .card h3 { margin: 0 0 8px; font-size: 15px; font-weight: 400; letter-spacing: .01em; }
+  .card h3 .i { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-faint); margin-right: 8px; }
+  .kv { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 3px 12px; margin: 0; }
+  .kv dt { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); padding-top: 3px; }
+  .kv dd { margin: 0; font-family: var(--mono); font-size: 12.5px; color: #2B2115; overflow-wrap: anywhere; }
+  .tag-ca { color: var(--wax); }
+  .hint { font-size: 13.5px; color: var(--ink-soft); margin: 14px 0 0; }
+
+  .why { display: grid; margin: 1.2em 0 0; border-top: 1px solid var(--rule); }
+  .why div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 14px; padding: 9px 0; border-bottom: 1px dotted rgba(87, 70, 47, .28); }
+  .why code { font-size: 12px; color: var(--wax); }
+  .why span { font-size: 15px; color: #2B2115; }
+
+  @supports selector(::-webkit-scrollbar) {
+    textarea::-webkit-scrollbar { width: 8px; height: 8px; }
+    textarea::-webkit-scrollbar-track { background: transparent; }
+    textarea::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(87, 70, 47, .18); }
+    textarea:hover::-webkit-scrollbar-thumb { background: rgba(87, 70, 47, .42); }
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    textarea { scrollbar-width: thin; scrollbar-color: rgba(87, 70, 47, .3) transparent; }
+  }
+
+  @media (width <= 720px) {
+    .row { grid-template-columns: minmax(0, 1fr); }
+    .why div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  }
+</style>
+</head>
+<body>
+<svg class="defs" aria-hidden="true" focusable="false">
+  <filter id="f-deckle" x="-2%" y="-2%" width="104%" height="104%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" seed="9" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<header class="bar">
+  <a class="home" href="./">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#8C2A21"/><circle cx="20" cy="20" r="15.4" fill="none" stroke="#F0DCC8" stroke-opacity=".45" stroke-width=".9"/><path d="M24.4 11.6 a9.4 9.4 0 1 1 .9 14.6 a7.2 7.2 0 0 0 -.9-14.6" fill="#EFDCC4"/></svg>
+    <span>mooncred</span>
+  </a>
+  <nav aria-label="Site">
+    <a href="./">letter</a>
+    <a href="guide.html">guide</a>
+    <a href="api.html">reference</a>
+    <a href="try.html" aria-current="page">desk</a>
+    <a class="gh" href="https://github.com/moonbitstack/mooncred" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
+  </nav>
+</header>
+
+<main class="stack">
+
+  <article class="sheet" id="desk">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>the desk</span><span class="folio">i</span></header>
+    <h1>Lay a credential <em>on the desk.</em></h1>
+    <p>A chain of PEM blocks or a token, and what mooncred makes of it: every field it parsed, the path it built to a trust anchor, and the sentence it refuses with when it refuses. The reading is not repeated here — the page loads this library compiled to JavaScript, the same code the tests cover.</p>
+
+    <form class="desk-form" id="form">
+      <label class="fld">
+        <span class="lbl">the credential</span>
+        <textarea id="cred" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="-----BEGIN CERTIFICATE-----&#10;MIIB…&#10;-----END CERTIFICATE-----"></textarea>
+      </label>
+      <div class="row">
+        <label class="fld">
+          <span class="lbl">host it must name</span>
+          <input id="host" type="text" spellcheck="false" autocomplete="off" placeholder="example.com">
+        </label>
+        <label class="fld">
+          <span class="lbl">judged at</span>
+          <input id="when" type="datetime-local" step="1">
+        </label>
+        <label class="fld">
+          <span class="lbl">secret, for an HMAC token</span>
+          <input id="secret" type="password" spellcheck="false" autocomplete="off" placeholder="only the token needs one">
+        </label>
+      </div>
+      <label class="chk"><input id="trust" type="checkbox" checked><span>trust the certificates pasted — untick to hold them to the roots a browser trusts</span></label>
+      <div class="acts">
+        <button class="seal" type="submit">read it</button>
+        <button class="ghost" type="button" id="ex-cert">a post-quantum certificate</button>
+        <button class="ghost" type="button" id="ex-token">a token</button>
+        <span id="engine" class="hint" aria-live="polite"></span>
+      </div>
+    </form>
+
+    <div class="report" id="report" aria-live="polite"></div>
+  </article>
+
+  <article class="sheet" id="refusals">
+    <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>x509 · jwt</span><span class="folio">ii</span></header>
+    <h2>What it refuses, <em>and where.</em></h2>
+    <p>Every refusal carries the position of the certificate it is about, counting the leaf as zero, so a chain of four says which of them failed rather than that one did. These are the kinds a chain can come back with.</p>
+    <div class="why">
+      <div><code>Malformed</code><span>The certificate does not parse, or parses into something other than one certificate.</span></div>
+      <div><code>Expired</code><span>Its notAfter is behind the instant the chain is judged at.</span></div>
+      <div><code>Premature</code><span>Its notBefore is ahead of that instant.</span></div>
+      <div><code>Issuer</code><span>Nothing among the intermediates or the anchors is named as its issuer.</span></div>
+      <div><code>Authority</code><span>An issuer is not a CA, has no keyCertSign, or sits deeper than its pathLenConstraint.</span></div>
+      <div><code>Signature</code><span>The issuer's signature does not verify over the bytes that arrived.</span></div>
+      <div><code>Depth</code><span>More intermediates than the policy allows.</span></div>
+      <div><code>Budget</code><span>More signature checks than the policy allows — a pile of cross-signed certificates ran it out.</span></div>
+      <div><code>Host</code><span>The leaf names no such host: subjectAltName only, never the commonName.</span></div>
+      <div><code>Purpose</code><span>The leaf, or an issuer that restricts its purposes, does not allow the one asked for.</span></div>
+      <div><code>Critical</code><span>A critical extension the validator does not understand.</span></div>
+      <div><code>Constraint</code><span>A name falls outside a name constraint above it.</span></div>
+      <div><code>Algorithm</code><span>A signature algorithm this validator does not check.</span></div>
+      <div><code>Weak</code><span>An RSA key below the policy's bit count signed something on the path.</span></div>
+      <div><code>KeyUsage</code><span>A key that can only sign says it enciphers or agrees on a key, which RFC 9881 §5 forbids.</span></div>
+    </div>
+    <p class="hint">The page keeps the library's own words: the sentence beside each verdict is the one <code>Refused</code> prints.</p>
+    <footer class="foot"><span>built from src/examples/browser</span><a class="next" href="guide.html">next · the guide</a></footer>
+  </article>
+
+</main>
+
+<footer class="desk-foot">
+  <span>moonbitstack/mooncred</span><span class="dot"></span>
+  <a href="https://github.com/moonbitstack/mooncred">source</a><span class="dot"></span>
+  <a href="guide.html">guide</a><span class="dot"></span>
+  <a href="api.html">reference</a>
+</footer>
+
+<script type="module" src="assets/desk.js"></script>
+</body>
+</html>

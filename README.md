@@ -10,6 +10,7 @@ and the ways they are judged.</p>
 <a href="https://moonbitstack.github.io/mooncred/">Home</a> ·
 <a href="https://moonbitstack.github.io/mooncred/guide.html">Guide</a> ·
 <a href="https://moonbitstack.github.io/mooncred/api.html">API</a> ·
+<a href="https://moonbitstack.github.io/mooncred/try.html">Desk</a> ·
 <a href="https://mooncakes.io/docs/moonbitstack/mooncred">mooncakes</a>
 </p>
 
@@ -45,7 +46,7 @@ let got = @jwt.verify(token[:], HS256, key, now=At(seconds),
 | `jwk` | JSON Web Key and key sets: reading, writing, choosing | RFC 7517, RFC 7518 §6 |
 | `jwe` | JSON Web Encryption: five-part compact serialisation, key wrapping, GCM and CBC-HMAC | RFC 7516, RFC 7518, RFC 3394 |
 | `token` | A signed string for a cookie or a URL: expiry on verify, a salt per purpose, key rotation | — |
-| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA or Ed25519, match it against a host, validate a chain to a set of trust anchors; build a self-signed P-256 one; read the private key that goes with it | RFC 5280, RFC 6125, RFC 7468, RFC 5958, RFC 5915 |
+| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA, Ed25519 or ML-DSA, match it against a host, validate a chain to a set of trust anchors; build a self-signed one for any key; read the private key that goes with it | RFC 5280, RFC 6125, RFC 7468, RFC 5958, RFC 5915, RFC 9881 |
 | `csr` | Certificate signing requests: read one, check its signature, see what it asks for, and write one | RFC 2986, RFC 2985 §5.4 |
 | `pbe` | Encrypted private keys: PBES2 with PBKDF2, and the older PBES1 and PKCS#12 derivations openssl still writes | RFC 8018, RFC 7292 §B.2 |
 | `pkcs12` | PFX containers: the certificate chain and the key, with a MAC, read and written | RFC 7292, RFC 5652 |
@@ -187,7 +188,8 @@ holds a chain to, and whose rule each is:
 | The leaf allows the purpose asked for; an issuer that lists purposes allows it too | RFC 5280 §4.2.1.12, Go |
 | An unknown critical extension refuses the chain | RFC 5280 §4.2 |
 | Name constraints over dNSName, iPAddress, rfc822Name, directoryName and URI hosts | RFC 5280 §4.2.1.10 |
-| RSA PKCS#1 and PSS, ECDSA on four curves, Ed25519; no SHA-1 | webpki, Go |
+| RSA PKCS#1 and PSS, ECDSA on four curves, Ed25519, ML-DSA at all three sets; no SHA-1 | webpki, Go, RFC 9881 |
+| An ML-DSA key asserts no keyEncipherment or keyAgreement, which a signing key cannot do | RFC 9881 §5 |
 | At most six intermediates and a hundred signature checks | webpki |
 
 The two limits and the purpose are a `Policy`, with `policy` as the preset.
@@ -200,8 +202,7 @@ The key a server signs with reads from any file `openssl` writes:
 
 ```moonbit
 let key = @x509.PrivateKey::pem(text)     // PRIVATE KEY, EC PRIVATE KEY, RSA PRIVATE KEY
-let spki = @x509.Spki::read(@x509.Spki::encode(key.public()))
-let pairs = spki == cert.spki             // whether the two belong together
+let pairs = cert.spki.holds(key.public()) // whether the two belong together
 ```
 
 PKCS#8, SEC1 and PKCS#1 are told apart by their structure, so `PrivateKey::read`
@@ -209,6 +210,26 @@ takes the DER of any of them. A key whose parts disagree (primes that do not
 make the modulus, an embedded public point that is not its own, two curves) is
 `Malformed`; an encrypted key is `Unsupported` — unless it is handed to
 `read_encrypted` with the passphrase, which is what `pbe` is for.
+
+A post-quantum certificate is the same call with a different key, because the
+signature algorithm follows the key: ML-DSA at all three parameter sets, the
+chosen one in the certificate's own identifier and in the signature over its
+TBS (RFC 9881 §3).
+
+```moonbit
+let seed = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+let key : @x509.PrivateKey = MlDsa(@mldsa.PrivateKey::from_seed(kind=D65, seed))
+let der = @x509.self_signed(
+  key~,
+  cn="pqc.example",
+  serial=b"\x01",
+  not_before=1793232000L,                  // seconds since the Unix epoch
+  not_after=1824768000L,
+  exts={ ..@x509.Exts::empty(), san: [Dns("pqc.example")] },
+)
+```
+
+`moon run src/examples/pqc` writes that certificate out, and `openssl verify` accepts it.
 
 ## Requests, containers and revocation
 
@@ -272,12 +293,12 @@ carry. `cbor` is its own package, so a program that reads a CWT does not link th
 rest.
 
 ```moonbit
-let message = @cose.sign1(payload, alg=Es256, signer, kid=Some(kid))
-let opened = @cose.verify1(message[:], alg=Es256, verifier)
+let message = @cose.sign1(payload, alg=ES256, signer, kid=Some(kid))
+let opened = @cose.verify1(message[:], alg=ES256, verifier)
 
 let claims = @cose.Claims::new(iss="moonbitstack", exp=4102444800L)
-let cwt = @cose.signed(claims, alg=Hs256, mac)
-let checked = @cose.verified(cwt[:], alg=Hs256, mac, now=At(seconds))
+let cwt = @cose.signed(claims, alg=HS256, signer)
+let checked = @cose.verified(cwt[:], alg=HS256, verifier, now=At(seconds))
 ```
 
 ## Policy, when a chain has to be valid for a purpose
@@ -326,7 +347,7 @@ byte.
 
 ## What is not here yet
 
-PASETO, and signing with ML-DSA: the primitives both need are not in
+PASETO, and SLH-DSA certificates: the primitives they need are not in
 `mooncrypt` yet, and this library does not implement primitives of its own.
 
 Online revocation is not here on purpose — fetching a CRL or an OCSP response

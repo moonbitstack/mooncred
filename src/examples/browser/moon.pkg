@@ -1,0 +1,19 @@
+// The page under docs/try.html calls these: the library compiled to JS, not a copy of it.
+// Built by .github/workflows/docs.yml into docs/engine/mooncred.js, which is not committed.
+supported_targets = "js"
+
+options(
+  link: { "js": { "exports": [ "certificate", "token" ] } },
+)
+
+import {
+  "moonbitstack/mooncred/jwt",
+  "moonbitstack/mooncred/roots",
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/asn1",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonjson/json",
+  "moonbitlang/core/encoding/utf8",
+}

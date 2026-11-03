@@ -226,6 +226,26 @@ fn issue() -> (@ecdsa.PrivateKey, Bytes) raise {
   let request = @csr.Request::pem(pem)
   println("request verified: \{request.verified()}")
   println("asks for this key: \{request.asks_for(Ec(key.public()))}")
+  // The same call with a post-quantum key. The identifier in the certificate and the signature
+  // over it both follow the key, so nothing else changes.
+  let seed = @base16.decode(
+    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  )
+  let pq : @x509.PrivateKey = MlDsa(
+    @mldsa.PrivateKey::from_seed(kind=D65, seed),
+  )
+  let pq_cert = @x509.parse(
+    @x509.self_signed(
+      key=pq,
+      cn="pqc.example",
+      serial=b"\x02",
+      not_before=1793232000L,
+      not_after=1824768000L,
+    ),
+  )
+  println(
+    "ML-DSA certificate: \{pq_cert.alg}, \{pq_cert.sig.bytes.length()} octets of signature",
+  )
   // @@end
   (key, der)
 }
