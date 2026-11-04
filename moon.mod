@@ -1,6 +1,6 @@
 name = "moonbitstack/mooncred"
 
-version = "0.6.8"
+version = "0.6.9"
 
 readme = "README.md"
 
@@ -47,10 +47,10 @@ keywords = [
 description = "Credentials for MoonBit: JWT, JWK and X.509."
 
 import {
-  "moonbitstack/moonbase@0.4.2",
-  "moonbitstack/mooncrypt@0.4.8",
-  "moonbitstack/moondate@0.1.0",
-  "moonbitstack/moonjson@0.4.2",
+  "moonbitstack/moonbase@0.4.3",
+  "moonbitstack/mooncrypt@0.4.10",
+  "moonbitstack/moondate@0.1.4",
+  "moonbitstack/moonjson@0.4.3",
 }
 
 source = "src"
