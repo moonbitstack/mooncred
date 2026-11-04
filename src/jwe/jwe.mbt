@@ -145,7 +145,7 @@ fn Enc::tag_size(self : Enc) -> Int32 {
 /// first, so the recipient knows what to do before it does anything.
 ///
 /// `cek` is the content-encryption key and `iv` the nonce; both are the caller's, for the reason
-/// this library has no generator. Under `dir` the CEK is the shared key and `cek` must be `None`;
+/// this library has no generator. Under `dir` the CEK is the shared key and `cek` must be left out;
 /// under any other algorithm it is required and must be `cek_size` octets. `seed` is what
 /// RSA-OAEP-256 needs to make its padding: the algorithm is randomised, and the randomness has to
 /// come from somewhere that is not here.
@@ -154,7 +154,7 @@ pub fn encrypt(
   key~ : Key,
   alg~ : Alg,
   enc~ : Enc,
-  cek~ : Bytes? = None,
+  cek? : Bytes,
   iv~ : BytesView,
   seed~ : BytesView = b"",
 ) -> String raise Refused {

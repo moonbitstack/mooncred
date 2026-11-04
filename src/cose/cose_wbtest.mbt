@@ -69,7 +69,7 @@ test "cose: a signed message verifies and its payload is what was signed" {
   let signer : &@spec.Signer = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let verifier : &@spec.Verifier = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let payload = from_hex("746865207061796c6f6164")
-  let message = sign1(payload[:], alg=HS256, signer, kid=Some(from_hex("aabb")))
+  let message = sign1(payload[:], alg=HS256, signer, kid=from_hex("aabb"))
   // The tag, then an array of four: the protected header, an empty map, the payload and the MAC.
   assert_eq(message[0], b'\xd2')
   let decoded = @cbor.decode(message[:]) catch { _ => panic() }

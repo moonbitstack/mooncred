@@ -131,18 +131,13 @@ fn keys_from_json() -> Unit raise {
 fn signed_strings() -> Unit raise {
   // @@listing token
   let keys = @token.Keys::new(b"the key that signs session cookies")
-  let cookie = @token.sign(
-    b"user=heke1228",
-    keys~,
-    salt="session",
-    at=Some(now),
-  )
+  let cookie = @token.sign(b"user=heke1228", keys~, salt="session", at=now)
   println(cookie)
   let value = @token.verify(
     cookie[:],
     keys~,
     salt="session",
-    max_age=Some(3600L),
+    max_age=3600L,
     now~,
   )
   println("value: \{value.length()} bytes")

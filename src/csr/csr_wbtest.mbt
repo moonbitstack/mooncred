@@ -55,7 +55,7 @@ test "csr: what this package writes comes back and verifies" {
   let der = self_signed(
     key,
     subject=@x509.common_name("written.example.com"),
-    exts=Some(exts),
+    exts~,
   )
   let read = parse(der[:])
   assert_true(read.verified())

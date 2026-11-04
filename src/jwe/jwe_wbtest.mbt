@@ -174,7 +174,7 @@ test "jwe: dir and the wrapping algorithms round trip" {
       key=Shared(shared),
       alg~,
       enc~,
-      cek~,
+      cek?,
       iv=iv[:],
     )
     let parts : Array[String] = []
@@ -199,8 +199,8 @@ test "jwe: the header is part of what is authenticated" {
     key=Shared(shared),
     alg=A256Kw,
     enc=A256Gcm,
-    cek=Some(
-      bytes("404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"),
+    cek=bytes(
+      "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
     ),
     iv=bytes("000102030405060708090a0b")[:],
   )
@@ -279,7 +279,7 @@ test "jwe: a key openssl wrapped to an RSA key opens" {
     key=Rsa(private_key.public()),
     alg=RsaOaep256,
     enc=A256Gcm,
-    cek=Some(bytes(rsa_cek)),
+    cek=bytes(rsa_cek),
     iv=bytes("000102030405060708090a0b")[:],
     seed=bytes(
         "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",

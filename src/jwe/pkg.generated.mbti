@@ -9,7 +9,7 @@ import {
 // Values
 pub fn decrypt(StringView, key~ : Identity, alg~ : Alg, enc~ : Enc) -> Bytes raise Refused
 
-pub fn encrypt(BytesView, key~ : Key, alg~ : Alg, enc~ : Enc, cek? : Bytes?, iv~ : BytesView, seed? : BytesView) -> String raise Refused
+pub fn encrypt(BytesView, key~ : Key, alg~ : Alg, enc~ : Enc, cek? : Bytes, iv~ : BytesView, seed? : BytesView) -> String raise Refused
 
 pub fn unwrap(BytesView, BytesView) -> Bytes raise Refused
 

@@ -6,9 +6,9 @@ import {
 }
 
 // Values
-pub fn sign(BytesView, keys~ : Keys, salt? : String, at? : Int64?) -> String
+pub fn sign(BytesView, keys~ : Keys, salt? : String, at? : Int64) -> String
 
-pub fn verify(StringView, keys~ : Keys, salt? : String, max_age? : Int64?, now~ : Int64) -> Bytes raise Refused
+pub fn verify(StringView, keys~ : Keys, salt? : String, max_age? : Int64, now~ : Int64) -> Bytes raise Refused
 
 // Errors
 #derive(Eq, @debug.Debug)

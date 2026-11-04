@@ -92,12 +92,7 @@ test "cwt: a signed claim set is judged by the clock the caller names" {
   )
   let signer : &@spec.Signer = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
   let verifier : &@spec.Verifier = mac(fn() { @hmac.Hmac::new(key[:], sha256) })
-  let message = signed(
-    claimset(),
-    alg=HS256,
-    signer,
-    kid=Some(from_hex("abcd")),
-  )
+  let message = signed(claimset(), alg=HS256, signer, kid=from_hex("abcd"))
   assert_eq(
     verified(message[:], alg=HS256, verifier, now=At(1700000000L)),
     claimset(),

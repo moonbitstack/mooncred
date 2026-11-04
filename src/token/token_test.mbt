@@ -21,17 +21,12 @@ fn key(text : String) -> @token.Keys {
 test "token: what it signs, it verifies" {
   let keys = key("a secret nobody else has")
   let payload = @utf8.encode("user=42&scope=read")[:]
-  let text = @token.sign(
-    payload,
-    keys~,
-    salt="session",
-    at=Some(1_700_000_000L),
-  )
+  let text = @token.sign(payload, keys~, salt="session", at=1_700_000_000L)
   let back = @token.verify(
     text,
     keys~,
     salt="session",
-    max_age=Some(3600L),
+    max_age=3600L,
     now=1_700_000_100L,
   )
   assert_eq(back, payload.to_owned())
@@ -57,7 +52,7 @@ test "token: a salt separates one use of a key from another" {
     @utf8.encode("reset the password")[:],
     keys~,
     salt="password-reset",
-    at=Some(1_700_000_000L),
+    at=1_700_000_000L,
   )
   let refused = try {
     @token.verify(text, keys~, salt="session", now=1_700_000_001L) |> ignore
@@ -78,11 +73,7 @@ test "token: a salt separates one use of a key from another" {
 /// character of it changes what the tag was computed over.
 test "token: an edited payload does not verify" {
   let keys = key("a secret nobody else has")
-  let text = @token.sign(
-    @utf8.encode("amount=10")[:],
-    keys~,
-    at=Some(1_700_000_000L),
-  )
+  let text = @token.sign(@utf8.encode("amount=10")[:], keys~, at=1_700_000_000L)
   let f = parts(text)
   let forged = @utf8.encode("amount=99")
     |> @base64.encode(kind=Url, padding=false)
@@ -102,17 +93,13 @@ test "token: an edited payload does not verify" {
 /// expired, and so is one stamped further in the future than a clock can honestly be.
 test "token: a token ages out, and a future one is not trusted" {
   let keys = key("a secret nobody else has")
-  let text = @token.sign(
-    @utf8.encode("session")[:],
-    keys~,
-    at=Some(1_700_000_000L),
-  )
+  let text = @token.sign(@utf8.encode("session")[:], keys~, at=1_700_000_000L)
   assert_eq(
-    @token.verify(text, keys~, max_age=Some(600L), now=1_700_000_590L),
+    @token.verify(text, keys~, max_age=600L, now=1_700_000_590L),
     @utf8.encode("session")[:].to_owned(),
   )
   let stale = try {
-    @token.verify(text, keys~, max_age=Some(600L), now=1_700_000_601L) |> ignore
+    @token.verify(text, keys~, max_age=600L, now=1_700_000_601L) |> ignore
     false
   } catch {
     Expired => true
@@ -137,7 +124,7 @@ test "token: a rotated key still verifies what it signed" {
   let text = @token.sign(
     @utf8.encode("stamped before the change")[:],
     keys=old,
-    at=Some(1_700_000_000L),
+    at=1_700_000_000L,
   )
   let rotated = old.rotate(@utf8.encode("the key from this year")[:])
   assert_eq(
@@ -148,7 +135,7 @@ test "token: a rotated key still verifies what it signed" {
   let fresh = @token.sign(
     @utf8.encode("after the change")[:],
     keys=rotated,
-    at=Some(1_700_000_000L),
+    at=1_700_000_000L,
   )
   assert_true(
     @token.verify(fresh, keys=rotated, now=1_700_000_100L).length() > 0,
@@ -171,7 +158,7 @@ test "token: a token without a timestamp is not aged" {
   let text = @token.sign(@utf8.encode("forever")[:], keys~)
   assert_eq(parts(text)[1], "")
   assert_eq(
-    @token.verify(text, keys~, max_age=Some(1L), now=2_000_000_000L),
+    @token.verify(text, keys~, max_age=1L, now=2_000_000_000L),
     @utf8.encode("forever")[:].to_owned(),
   )
 }

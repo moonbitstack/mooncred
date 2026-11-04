@@ -172,10 +172,10 @@ pub fn signed(
   claims : Claims,
   alg~ : Alg,
   signer : &@spec.Signer,
-  kid~ : BytesView? = None,
+  kid? : BytesView,
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
-  sign1(@cbor.encode(claims.value())[:], alg~, signer, kid~, external~)
+  sign1(@cbor.encode(claims.value())[:], alg~, signer, kid?, external~)
 }
 
 ///|
@@ -208,10 +208,10 @@ pub fn maced(
   claims : Claims,
   alg~ : Alg,
   tagger : &@spec.Signer,
-  kid~ : BytesView? = None,
+  kid? : BytesView,
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
-  mac0(@cbor.encode(claims.value())[:], alg~, tagger, kid~, external~)
+  mac0(@cbor.encode(claims.value())[:], alg~, tagger, kid?, external~)
 }
 
 ///|

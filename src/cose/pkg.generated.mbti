@@ -10,19 +10,19 @@ import {
 // Values
 pub fn decrypt0(BytesView, alg~ : Alg, key~ : BytesView, external? : BytesView) -> Bytes raise Refused
 
-pub fn encrypt0(BytesView, alg~ : Alg, key~ : BytesView, iv~ : BytesView, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+pub fn encrypt0(BytesView, alg~ : Alg, key~ : BytesView, iv~ : BytesView, kid? : BytesView, external? : BytesView) -> Bytes raise Refused
 
 pub fn mac(() -> &@spec.Mac) -> Keyed
 
-pub fn mac0(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+pub fn mac0(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView, external? : BytesView) -> Bytes raise Refused
 
-pub fn maced(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+pub fn maced(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView, external? : BytesView) -> Bytes raise Refused
 
 pub fn parse(BytesView, tag~ : UInt64) -> Message raise Refused
 
-pub fn sign1(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+pub fn sign1(BytesView, alg~ : Alg, &@spec.Signer, kid? : BytesView, external? : BytesView) -> Bytes raise Refused
 
-pub fn signed(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView?, external? : BytesView) -> Bytes raise Refused
+pub fn signed(Claims, alg~ : Alg, &@spec.Signer, kid? : BytesView, external? : BytesView) -> Bytes raise Refused
 
 pub fn unmaced(BytesView, alg~ : Alg, &@spec.Verifier, now~ : Clock, leeway? : Int64, external? : BytesView) -> Claims raise Refused
 

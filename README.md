@@ -277,8 +277,8 @@ holds a current and a previous key so rotation does not invalidate what was
 already issued.
 
 ```moonbit
-let text = @token.sign(payload, keys~, salt="session", at=Some(now))
-let value = @token.verify(text[:], keys~, salt="session", max_age=Some(86400L), now~)
+let text = @token.sign(payload, keys~, salt="session", at=now)
+let value = @token.verify(text[:], keys~, salt="session", max_age=86400L, now~)
 ```
 
 `jwe` is RFC 7516 with the key management and content encryption named
@@ -293,7 +293,7 @@ carry. `cbor` is its own package, so a program that reads a CWT does not link th
 rest.
 
 ```moonbit
-let message = @cose.sign1(payload, alg=ES256, signer, kid=Some(kid))
+let message = @cose.sign1(payload, alg=ES256, signer, kid=kid)
 let opened = @cose.verify1(message[:], alg=ES256, verifier)
 
 let claims = @cose.Claims::new(iss="moonbitstack", exp=4102444800L)

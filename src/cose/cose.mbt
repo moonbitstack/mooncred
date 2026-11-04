@@ -176,7 +176,7 @@ pub fn sign1(
   payload : BytesView,
   alg~ : Alg,
   signer : &@spec.Signer,
-  kid~ : BytesView? = None,
+  kid? : BytesView,
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
   match alg {
@@ -342,7 +342,7 @@ pub fn mac0(
   payload : BytesView,
   alg~ : Alg,
   tagger : &@spec.Signer,
-  kid~ : BytesView? = None,
+  kid? : BytesView,
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
   if alg != HS256 {
@@ -397,7 +397,7 @@ pub fn encrypt0(
   alg~ : Alg,
   key~ : BytesView,
   iv~ : BytesView,
-  kid~ : BytesView? = None,
+  kid? : BytesView,
   external~ : BytesView = b"",
 ) -> Bytes raise Refused {
   if key.length() != alg.key_size() {

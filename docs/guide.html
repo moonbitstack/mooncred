@@ -198,18 +198,13 @@ EdDSA verified: 1 claim<!-- /run:jwk --></pre>
     <h2>A signed string for a cookie.</h2>
     <p>When the reader is your own server, a JWT is more than the job needs. <code>token</code> signs a value with a timestamp and an HMAC; the salt keeps a session cookie from passing as a password-reset link, <code>max_age</code> bounds its life, and <code>rotate</code> moves to a new key while the old one still reads.</p>
     <pre class="listing"><code><!-- code:token -->let keys = @token.Keys::new(b"the key that signs session cookies")
-let cookie = @token.sign(
-  b"user=heke1228",
-  keys~,
-  salt="session",
-  at=Some(now),
-)
+let cookie = @token.sign(b"user=heke1228", keys~, salt="session", at=now)
 println(cookie)
 let value = @token.verify(
   cookie[:],
   keys~,
   salt="session",
-  max_age=Some(3600L),
+  max_age=3600L,
   now~,
 )
 println("value: \{value.length()} bytes")

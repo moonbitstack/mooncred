@@ -57,7 +57,7 @@ pub fn sign(
   payload : BytesView,
   keys~ : Keys,
   salt~ : String = "",
-  at~ : Int64? = None,
+  at? : Int64,
 ) -> String {
   let body = @base64.encode(payload, kind=Url, padding=false)
   let stamp = match at {
@@ -83,7 +83,7 @@ pub fn verify(
   text : StringView,
   keys~ : Keys,
   salt~ : String = "",
-  max_age~ : Int64? = None,
+  max_age? : Int64,
   now~ : Int64,
 ) -> Bytes raise Refused {
   let parts = split(text)

@@ -177,7 +177,7 @@ pub fn Request::asks_for(self : Request, key : Key) -> Bool {
 pub fn self_signed(
   key : @x509.PrivateKey,
   subject~ : Bytes,
-  exts~ : @x509.Exts? = None,
+  exts? : @x509.Exts,
 ) -> Bytes raise @asn1.Refused {
   let attributes = match exts {
     None => @asn1.tlv(0xa0, b"")
@@ -208,9 +208,9 @@ pub fn self_signed(
 pub fn self_signed_pem(
   key : @x509.PrivateKey,
   subject~ : Bytes,
-  exts~ : @x509.Exts? = None,
+  exts? : @x509.Exts,
 ) -> String raise @asn1.Refused {
-  let der = self_signed(key, subject~, exts~)
+  let der = self_signed(key, subject~, exts?)
   @x509.pem_wrap(der[:], label="CERTIFICATE REQUEST")
 }
 
