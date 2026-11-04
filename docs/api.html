@@ -77,7 +77,7 @@
   IssuedAt(at~ : Double)
   Type(want~ : String, got~ : String)
   Missing(claim~ : String)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a token was not accepted.</p>
 <p>Each reason is separate so a caller can map it to the right answer — an expired token deserves a different response from a forged one — and so a log says which check failed rather than that one did.</p>
 </div>
@@ -97,7 +97,7 @@
   ES384
   ES512
   EdDSA
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A JOSE signature algorithm (RFC 7518 §3.1), and the one RFC 8037 adds.</p>
 <p><code>none</code> is not here and never will be. It is the algorithm that made "verified" mean "not verified" in a dozen libraries, and a type that cannot express it cannot be talked into accepting it.</p>
 </div>
@@ -106,7 +106,7 @@
 <pre class="sig"><code>pub(all) enum Clock {
   At(Int64)
   Ignored
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>When the time claims are measured against.</p>
 <p>A library has no clock — reading one is a side effect and there is no reason for a token verifier to have that power — so the instant comes in from the caller. <code>Ignored</code> is the way to read a token without asking whether it has expired: a debugging tool, an audit of tokens already collected, a migration that has to read what was issued last year. It is spelled out at the call site because the alternative is a verifier that quietly stopped checking.</p>
 </div>
@@ -140,7 +140,7 @@
   subject : String?
   typ : String?
   required : Array[String]
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>What a token has to satisfy beyond its signature.</p>
 <p>Every field is a check that is either off or told what to expect, and every default is what the mainstream libraries do: <code>exp</code> and <code>nbf</code> are checked, <code>iat</code> is not, and <code>iss</code>, <code>aud</code>, <code>sub</code> and the header's <code>typ</code> are looked at only when the caller says what to expect. Nothing is enforced implicitly and nothing is skipped implicitly.</p>
 <p>One of these is assembled once for a deployment and passed to every verification, which is what <code>jsonwebtoken</code>'s <code>Validation</code>, .NET's <code>TokenValidationParameters</code> and <code>jose</code>'s options object are for.</p>
@@ -150,7 +150,7 @@
 <pre class="sig"><code>pub(all) enum Wins {
   Base
   Extra
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Which side wins when a setting is given twice.</p>
 <p>Every function here that takes both a base and something layered over it says which one wins, and lets a caller say otherwise. The defaults differ by function and each one says why: <code>verify</code> lets the override win, because a per-call argument is more specific than a policy assembled once; <code>sign</code> lets the base win, because the header it computes describes the signature it is about to make.</p>
 </div>
@@ -161,13 +161,13 @@
 </div>
 <div class="item" id="jwt-claims_unverified">
 <div class="name"><span class="kind">fn</span>claims_unverified</div>
-<pre class="sig"><code>pub fn claims_unverified(StringView) -&gt; Map[String, Json] raise Refused</code></pre>
+<pre class="sig"><code>pub fn claims_unverified(StringView) -&gt; Map[String, @json.Json] raise Refused</code></pre>
 <p>The claims of a token that has not been verified.</p>
 <p>Whoever sent the token wrote these. Reading them before <code>verify</code> has returned is reading an attacker's input; it is here because a gateway sometimes must route on <code>iss</code> before it knows which key to fetch, and for no other reason.</p>
 </div>
 <div class="item" id="jwt-header">
 <div class="name"><span class="kind">fn</span>header</div>
-<pre class="sig"><code>pub fn header(StringView) -&gt; Map[String, Json] raise Refused</code></pre>
+<pre class="sig"><code>pub fn header(StringView) -&gt; Map[String, @json.Json] raise Refused</code></pre>
 <p>The header of a token that has not been verified.</p>
 <p>This is for one thing: reading <code>kid</code> to choose which key to verify with. Nothing else in here has been checked by anybody.</p>
 </div>
@@ -179,7 +179,7 @@
 </div>
 <div class="item" id="jwt-sign">
 <div class="name"><span class="kind">fn</span>sign</div>
-<pre class="sig"><code>pub fn sign(Map[String, Json], Alg, &amp;@spec.Signer, typ? : String?, extra? : Map[String, Json], wins? : Wins, clash? : OnClash[Map[String, Json]]) -&gt; String</code></pre>
+<pre class="sig"><code>pub fn sign(Map[String, @json.Json], Alg, &amp;@spec.Signer, typ? : String?, extra? : Map[String, @json.Json], wins? : Wins, clash? : OnClash[Map[String, @json.Json]]) -&gt; String</code></pre>
 <p>Sign a claims set as a compact JWT.</p>
 <p><code>extra</code> goes into the header beside <code>alg</code> and <code>typ</code> — <code>kid</code> is what it is usually for, so a verifier can pick the right key out of a set before it verifies anything.</p>
 <p><code>typ</code> is <code>"JWT"</code>, which is what every library writes and what RFC 7519 §5.1 recommends. <code>None</code> leaves it out; another string puts that in — RFC 9068's access tokens want <code>"at+jwt"</code>.</p>
@@ -188,7 +188,7 @@
 </div>
 <div class="item" id="jwt-verify">
 <div class="name"><span class="kind">fn</span>verify</div>
-<pre class="sig"><code>pub fn verify(StringView, Alg, &amp;@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -&gt; Map[String, Json] raise Refused</code></pre>
+<pre class="sig"><code>pub fn verify(StringView, Alg, &amp;@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -&gt; Map[String, @json.Json] raise Refused</code></pre>
 <p>Verify a compact JWT and return its claims.</p>
 <p>**The algorithm is the caller's, not the token's.** A verifier that reads <code>alg</code> out of the header and then trusts it is how an RS256 public key gets used as an HS256 shared secret, and how <code>none</code> gets accepted; here the header must match what the caller already decided, or the token is refused.</p>
 <p>The signature is checked before any claim is read, so a forged token is never inspected for its contents.</p>
@@ -237,7 +237,7 @@
   Missing(field~ : String)
   NotBase64(field~ : String)
   Unknown(kty~ : String)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a JWK could not be read.</p>
 </div>
 <div class="item" id="jwk-Jwk">
@@ -252,7 +252,7 @@
   Rsa(modulus~ : Bytes, exponent~ : Bytes, secret~ : Bytes?)
   Ec(curve~ : String, x~ : Bytes, y~ : Bytes, secret~ : Bytes?)
   Okp(curve~ : String, x~ : Bytes, secret~ : Bytes?)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The key material a JWK carries, by key type (RFC 7518 §6).</p>
 <p>Bytes, not keys: turning these into something that can sign would mean choosing an implementation for every algorithm, and then a program that reads one JWK would link all of them. The two lines that build a key from this material belong to the program, which knows which algorithms it wants.</p>
 </div>
@@ -279,7 +279,7 @@
 </div>
 <div class="item" id="jwk-Jwk-json">
 <div class="name"><span class="kind">fn</span><span class="dim">Jwk::</span>json</div>
-<pre class="sig"><code>pub fn Jwk::json(Self, secret? : Bool) -&gt; Json</code></pre>
+<pre class="sig"><code>pub fn Jwk::json(Self, secret? : Bool) -&gt; @json.Json</code></pre>
 <p>Write the key back out.</p>
 <p>The private part is left out unless <code>secret</code> says otherwise, because the common reason to write a JWK is to publish it and the common accident is to publish the whole thing.</p>
 </div>
@@ -300,7 +300,7 @@
 </div>
 <div class="item" id="jwk-Jwk-read">
 <div class="name"><span class="kind">fn</span><span class="dim">Jwk::</span>read</div>
-<pre class="sig"><code>pub fn Jwk::read(Json) -&gt; Self raise Refused</code></pre>
+<pre class="sig"><code>pub fn Jwk::read(@json.Json) -&gt; Self raise Refused</code></pre>
 <p>Read one key from a parsed document.</p>
 </div>
 <div class="item" id="jwk-Jwk-usage">
@@ -332,7 +332,7 @@
 </div>
 <div class="item" id="jwk-Set-read">
 <div class="name"><span class="kind">fn</span><span class="dim">Set::</span>read</div>
-<pre class="sig"><code>pub fn Set::read(Json, skip? : Bool) -&gt; Self raise Refused</code></pre>
+<pre class="sig"><code>pub fn Set::read(@json.Json, skip? : Bool) -&gt; Self raise Refused</code></pre>
 <p>Read a set from a parsed document.</p>
 <p>A key the reader does not understand is skipped rather than fatal: RFC 7517 §5.1 says so, and a set that grows a post-quantum key must not stop every verifier that has not heard of it. <code>skip</code> turns that off for a caller who would rather hear about it.</p>
 </div>
@@ -351,7 +351,7 @@
   Malformed(String)
   Unsupported(String)
   Key
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a token could not be sealed or opened.</p>
 </div>
 <div class="item" id="jwe-Alg">
@@ -362,7 +362,7 @@
   A192Kw
   A256Kw
   RsaOaep256
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The key-management algorithm: how the content-encryption key reaches the recipient.</p>
 </div>
 <div class="item" id="jwe-Enc">
@@ -374,7 +374,7 @@
   A128CbcHs256
   A192CbcHs384
   A256CbcHs512
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The content-encryption algorithm: authenticated encryption over the payload.</p>
 </div>
 <div class="item" id="jwe-Identity">
@@ -430,7 +430,7 @@
   Malformed(String)
   Signature
   Expired
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a token was not accepted.</p>
 </div>
 <div class="item" id="token-Keys">
@@ -491,7 +491,7 @@
   Weak(at~ : Int32)
   KeyUsage(at~ : Int32)
   Comparisons(limit~ : Int32)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a chain was refused. <code>at</code> is the position in the chain as given — 0 the leaf, then the intermediates in the order they arrived — of the certificate the refusal is about.</p>
 <div class="impls">implements Show</div>
 </div>
@@ -500,7 +500,7 @@
 <pre class="sig"><code>pub(all) struct Attr {
   oid : String
   value : String
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>One AttributeTypeAndValue: the attribute's OID in dotted-decimal form, and its value as text.</p>
 </div>
 <div class="item" id="x509-Cert">
@@ -526,7 +526,7 @@
 <pre class="sig"><code>pub(all) struct Constraints {
   permitted : Array[GeneralName]
   excluded : Array[GeneralName]
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A NameConstraints (RFC 5280 §4.2.1.10): the subtrees every name below the CA must fall in, and the ones none may.</p>
 </div>
 <div class="item" id="x509-Exts">
@@ -541,7 +541,7 @@
   aki : Bytes?
   constraints : Constraints?
   unknown_critical : Array[String]
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The extensions a certificate is judged on (RFC 5280 §4.2). <code>key_usage</code> bits are numbered from the top of the first octet — 0 digitalSignature, 5 keyCertSign. <code>eku</code> is <code>None</code> when the extension is absent, which means any purpose, as against a listed set that does not include the one being asked for. <code>ski</code> and <code>aki</code> are the key identifiers path building uses to try the likeliest issuer first. <code>unknown_critical</code> names the critical extensions this parser does not understand: §4.2 makes such a certificate unusable, and a caller can only obey that rule if it is told rather than left to assume the skip was safe.</p>
 </div>
 <div class="item" id="x509-GeneralName">
@@ -553,7 +553,7 @@
   Ip(Bytes)
   Dir(Name)
   Named(Int32, Bytes)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A GeneralName (RFC 5280 §4.2.1.6). The forms that name a peer are decoded; the rest keep their field number and contents, so a caller can see what was there instead of being told the extension was empty. In a name constraint an <code>Ip</code> is an address followed by its mask, eight or thirty-two octets; in a subjectAltName it is the bare address.</p>
 </div>
 <div class="item" id="x509-Key">
@@ -572,7 +572,7 @@
 <pre class="sig"><code>pub(all) struct Name {
   rdns : Array[Array[Attr]]
   raw : Bytes
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A distinguished name as it is encoded — a sequence of relative distinguished names, each a set of attributes — together with the encoding itself. Path building matches an issuer to its subject by those octets, as webpki and Go do: two readings of one name must not decide whether a certificate chains.</p>
 </div>
 <div class="item" id="x509-Policy">
@@ -583,7 +583,7 @@
   budget : Int32
   comparisons : Int32
   bits : Int32
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>What a validation asks for and how far it may go. <code>depth</code> bounds the intermediates on the path, <code>budget</code> the signature checks spent finding it, <code>comparisons</code> the name-constraint comparisons, and <code>bits</code> the smallest RSA modulus a signature is accepted under.</p>
 </div>
 <div class="item" id="x509-PrivateKey">
@@ -607,7 +607,7 @@
   alg : String
   params : String?
   key : @asn1.Bits
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one (for an EC key, the named curve), and the key bits. Absent and NULL parameters both read as <code>None</code>, which is what every algorithm reachable from here means by either.</p>
 </div>
 <div class="item" id="x509-Usage">
@@ -617,7 +617,7 @@
   Client
   Any
   Other(String)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The key purpose the leaf must allow (RFC 5280 §4.2.1.12). <code>Any</code> asks for none and checks nothing; <code>Other</code> names a purpose by OID.</p>
 </div>
 <div class="item" id="x509-Validity">
@@ -625,7 +625,7 @@
 <pre class="sig"><code>pub(all) struct Validity {
   not_before : Int64
   not_after : Int64
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A validity window, in seconds since the Unix epoch.</p>
 </div>
 <div class="item" id="x509-eku_any">
@@ -959,7 +959,7 @@
   Malformed(String)
   Unsupported(String)
   Passphrase
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why an encrypted key could not be read or written.</p>
 </div>
 <div class="item" id="pbe-Encrypted">
@@ -972,7 +972,7 @@
   iv : Bytes?
   icv : Int32
   body : Bytes
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A parsed EncryptedPrivateKeyInfo. <code>body</code> is the ciphertext; everything else is what is needed to turn it back into a PrivateKeyInfo.</p>
 </div>
 <div class="item" id="pbe-Kdf">
@@ -981,7 +981,7 @@
   Pbkdf2(salt~ : Bytes, rounds~ : Int32, prf~ : String, length~ : Int32?)
   Pkcs12(salt~ : Bytes, rounds~ : Int32)
   Pbkdf1(salt~ : Bytes, rounds~ : Int32, md5~ : Bool)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The key derivation a file names, with what it needs to run.</p>
 </div>
 <div class="item" id="pbe-Prf">
@@ -1184,7 +1184,7 @@
 <pre class="sig"><code>pub(all) enum Responder {
   ByName(@x509.Name)
   ByKey(Bytes)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>How the responder names itself (RFC 6960 §4.2.2.3): by its distinguished name, or by a hash of its public key.</p>
 </div>
 <div class="item" id="revoke-Revoked">
@@ -1192,7 +1192,7 @@
 <pre class="sig"><code>pub(all) struct Revoked {
   at : Int64
   reason : Int32?
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A withdrawal: the time it took effect and the reason the issuer gave.</p>
 </div>
 <div class="item" id="revoke-Single">
@@ -1214,7 +1214,7 @@
   Good
   Revoked(Revoked)
   Unknown
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>What a revocation source says about a certificate.</p>
 </div>
 <div class="item" id="revoke-Basic-fresh">
@@ -1279,7 +1279,7 @@
 <div class="name"><span class="kind">error</span>Refused</div>
 <pre class="sig"><code>pub(all) suberror Refused {
   Malformed(String)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a certificate's policies could not be read.</p>
 </div>
 <div class="item" id="policy-Cert">
@@ -1290,7 +1290,7 @@
   require_explicit : Int32?
   inhibit_mapping : Int32?
   inhibit_any : Int32?
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The policy extensions of one certificate, as they bear on the tree.</p>
 </div>
 <div class="item" id="policy-any_policy">
@@ -1332,7 +1332,7 @@
   Key
   Expired(at~ : Int64)
   TooEarly(at~ : Int64)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why a message could not be made or opened.</p>
 </div>
 <div class="item" id="cose-Alg">
@@ -1345,7 +1345,7 @@
   A128GCM
   A192GCM
   A256GCM
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The algorithm, by its COSE identifier (RFC 9053).</p>
 <p>One enumeration covers signing, MAC and encryption because a COSE header names all three in the same <code>alg</code> label; which of them a value means is decided by the structure it appears in, and a value that cannot be that structure's is refused. The variants are spelled as the IANA registry spells them, which is also how <code>jwt.Alg</code> spells the ones the two share; <code>name</code> gives that spelling back.</p>
 </div>
@@ -1359,7 +1359,7 @@
   nbf : Int64?
   iat : Int64?
   cti : Bytes?
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>The registered claims of RFC 8392 §3.1.</p>
 </div>
 <div class="item" id="cose-Clock">
@@ -1367,7 +1367,7 @@
 <pre class="sig"><code>pub(all) enum Clock {
   At(Int64)
   Ignored
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>When the caller says it is.</p>
 <p>The clock is an argument rather than something this library reads, for the reason none of these packages calls the system: a verifier that consults its own clock cannot be tested at the moment a token expires, and one that cannot be tested that way is one nobody checks.</p>
 </div>
@@ -1383,7 +1383,7 @@
   head : Bytes
   payload : Bytes
   tail : Bytes
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A parsed COSE message: the head header as it arrived, the payload, and whatever else the structure carries.</p>
 </div>
 <div class="item" id="cose-decrypt0">
@@ -1500,7 +1500,7 @@
 <pre class="sig"><code>pub(all) suberror Refused {
   Malformed(String)
   Unsupported(String)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>Why some octets are not a CBOR item.</p>
 </div>
 <div class="item" id="cbor-Value">
@@ -1516,7 +1516,7 @@
   Null
   Undefined
   Simple(Byte)
-} derive(Eq, @debug.Debug)</code></pre>
+}</code></pre>
 <p>A CBOR item.</p>
 <p><code>Int</code> covers both major types 0 and 1, so an integer reads as the number it is rather than as a sign and a magnitude the caller has to combine. That costs the top half of the unsigned range, which is refused on the way in: nothing in a credential or a token is a 2^63-byte count.</p>
 </div>
