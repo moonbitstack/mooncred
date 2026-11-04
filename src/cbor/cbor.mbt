@@ -10,10 +10,11 @@
 
 ///|
 /// Why some octets are not a CBOR item.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   Malformed(String)
   Unsupported(String)
-} derive(Eq, Debug)
+}
 
 ///|
 /// A CBOR item.
@@ -21,6 +22,7 @@ pub(all) suberror Refused {
 /// `Int` covers both major types 0 and 1, so an integer reads as the number it is rather than as
 /// a sign and a magnitude the caller has to combine. That costs the top half of the unsigned
 /// range, which is refused on the way in: nothing in a credential or a token is a 2^63-byte count.
+#derive(Eq, Debug)
 pub(all) enum Value {
   Int(Int64)
   Bytes(Bytes)
@@ -36,7 +38,7 @@ pub(all) enum Value {
   /// A simple value that is not one of the three above, kept so a decoder can hand back what it
   /// was given even where it has no opinion about it.
   Simple(Byte)
-} derive(Eq, Debug)
+}
 
 ///|
 /// The octets of an item: definite lengths, and the shortest head that holds the argument.

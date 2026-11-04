@@ -8,6 +8,7 @@
 
 ///|
 /// Why a token was not accepted.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   /// Not a token this format could have produced.
   Malformed(String)
@@ -17,7 +18,7 @@ pub(all) suberror Refused {
   Signature
   /// Older than the window the caller allows, or stamped in the future.
   Expired
-} derive(Eq, Debug)
+}
 
 ///|
 /// The keys a token may be verified against: the one signing now, and the ones retired but still

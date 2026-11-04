@@ -8,6 +8,7 @@
 
 ///|
 /// What a revocation source says about a certificate.
+#derive(Eq, Debug)
 pub(all) enum Status {
   /// Not withdrawn, as of the source's own timestamp.
   Good
@@ -15,14 +16,15 @@ pub(all) enum Status {
   Revoked(Revoked)
   /// The source does not speak for this certificate — another issuer, another serial.
   Unknown
-} derive(Eq, Debug)
+}
 
 ///|
 /// A withdrawal: the time it took effect and the reason the issuer gave.
+#derive(Eq, Debug)
 pub(all) struct Revoked {
   at : Int64
   reason : Int32?
-} derive(Eq, Debug)
+}
 
 ///|
 /// One line of a revocation list.

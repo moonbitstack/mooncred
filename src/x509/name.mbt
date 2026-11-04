@@ -7,20 +7,22 @@ pub let oid_cn : String = "2.5.4.3"
 
 ///|
 /// One AttributeTypeAndValue: the attribute's OID in dotted-decimal form, and its value as text.
+#derive(Eq, Debug)
 pub(all) struct Attr {
   oid : String
   value : String
-} derive(Eq, Debug)
+}
 
 ///|
 /// A distinguished name as it is encoded — a sequence of relative distinguished names, each a set
 /// of attributes — together with the encoding itself. Path building matches an issuer to its
 /// subject by those octets, as webpki and Go do: two readings of one name must not decide whether
 /// a certificate chains.
+#derive(Eq, Debug)
 pub(all) struct Name {
   rdns : Array[Array[Attr]]
   raw : Bytes
-} derive(Eq, Debug)
+}
 
 ///|
 /// The value of the first attribute with this OID, in encoding order.

@@ -17,13 +17,15 @@
 /// The clock is an argument rather than something this library reads, for the reason none of these
 /// packages calls the system: a verifier that consults its own clock cannot be tested at the
 /// moment a token expires, and one that cannot be tested that way is one nobody checks.
+#derive(Eq, Debug)
 pub(all) enum Clock {
   At(Int64)
   Ignored
-} derive(Eq, Debug)
+}
 
 ///|
 /// The registered claims of RFC 8392 §3.1.
+#derive(Eq, Debug)
 pub(all) struct Claims {
   /// 1: who issued the token.
   iss : String?
@@ -40,7 +42,7 @@ pub(all) struct Claims {
   iat : Int64?
   /// 7: an identifier for this token, so one can be recognised as a replay.
   cti : Bytes?
-} derive(Eq, Debug)
+}
 
 ///|
 /// A claim set from the claims given; the others stay absent, not empty.

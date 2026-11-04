@@ -14,6 +14,7 @@
 
 ///|
 /// Why a message could not be made or opened.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   Malformed(String)
   Unsupported(String)
@@ -25,7 +26,7 @@ pub(all) suberror Refused {
   Expired(at~ : Int64)
   /// A claim set whose `nbf` has not arrived yet.
   TooEarly(at~ : Int64)
-} derive(Eq, Debug)
+}
 
 ///|
 /// The algorithm, by its COSE identifier (RFC 9053).
@@ -35,6 +36,7 @@ pub(all) suberror Refused {
 /// value that cannot be that structure's is refused. The variants are spelled as the IANA
 /// registry spells them, which is also how `jwt.Alg` spells the ones the two share; `name` gives
 /// that spelling back.
+#derive(Eq, Debug)
 pub(all) enum Alg {
   /// ECDSA with SHA-256, identifier -7.
   ES256
@@ -48,7 +50,7 @@ pub(all) enum Alg {
   A128GCM
   A192GCM
   A256GCM
-} derive(Eq, Debug)
+}
 
 ///|
 /// The identifier as it is written in a header.
@@ -195,6 +197,7 @@ pub fn sign1(
 ///|
 /// A parsed COSE message: the head header as it arrived, the payload, and whatever else the
 /// structure carries.
+#derive(Eq, Debug)
 pub(all) struct Message {
   /// The head header octets, kept as received: a signature is over these and not over a
   /// re-encoding of what they say.
@@ -203,7 +206,7 @@ pub(all) struct Message {
   /// The signature of a COSE_Sign1, or the tag of a COSE_Mac0, or the ciphertext of a
   /// COSE_Encrypt0.
   tail : Bytes
-} derive(Eq, Debug)
+}
 
 ///|
 /// Read one of the three single-recipient structures, checking its tag and its shape.

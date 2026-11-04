@@ -8,6 +8,7 @@
 /// choosing an implementation for every algorithm, and then a program that
 /// reads one JWK would link all of them. The two lines that build a key from
 /// this material belong to the program, which knows which algorithms it wants.
+#derive(Eq, Debug)
 pub(all) enum Material {
   /// A symmetric key — what HS256 is keyed with.
   Oct(key~ : Bytes)
@@ -17,7 +18,7 @@ pub(all) enum Material {
   Ec(curve~ : String, x~ : Bytes, y~ : Bytes, secret~ : Bytes?)
   /// An octet key pair — Ed25519 and the rest of RFC 8037.
   Okp(curve~ : String, x~ : Bytes, secret~ : Bytes?)
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Material with Eq::{equal, not_equal}
@@ -27,6 +28,7 @@ pub extend Material with Debug::{to_repr}
 
 ///|
 /// Why a JWK could not be read.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   /// The document is not a JSON object, or a set has no `keys` array.
   Shape(String)
@@ -36,7 +38,7 @@ pub(all) suberror Refused {
   NotBase64(field~ : String)
   /// A `kty` this package does not know.
   Unknown(kty~ : String)
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Refused with Eq::{equal, not_equal}

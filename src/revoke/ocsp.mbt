@@ -9,10 +9,11 @@
 ///|
 /// How the responder names itself (RFC 6960 §4.2.2.3): by its distinguished name, or by a hash of
 /// its public key.
+#derive(Eq, Debug)
 pub(all) enum Responder {
   ByName(@x509.Name)
   ByKey(Bytes)
-} derive(Eq, Debug)
+}
 
 ///|
 /// One answer inside a response: which certificate it is about, what the answer is, and the window

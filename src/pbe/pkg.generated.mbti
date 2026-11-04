@@ -15,16 +15,18 @@ pub fn pkcs12_key(StringView, BytesView, id~ : Int32, rounds~ : Int32, len~ : In
 pub fn pkcs12_key_with(prf~ : Prf, StringView, BytesView, id~ : Int32, rounds~ : Int32, len~ : Int32) -> Bytes raise Refused
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror Refused {
   Malformed(String)
   Unsupported(String)
   Passphrase
-} derive(Eq, @debug.Debug)
+}
 pub fn Refused::equal(Self, Self) -> Bool
 pub fn Refused::not_equal(Self, Self) -> Bool
 pub fn Refused::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub(all) struct Encrypted {
   raw : Bytes
   alg : String
@@ -33,7 +35,7 @@ pub(all) struct Encrypted {
   iv : Bytes?
   icv : Int32
   body : Bytes
-} derive(Eq, @debug.Debug)
+}
 pub fn Encrypted::algorithm(Self) -> Bytes raise Refused
 pub fn Encrypted::decrypt(Self, passphrase~ : StringView) -> Bytes raise Refused
 pub fn Encrypted::equal(Self, Self) -> Bool
@@ -42,11 +44,12 @@ pub fn Encrypted::not_equal(Self, Self) -> Bool
 pub fn Encrypted::parse(BytesView) -> Self raise Refused
 pub fn Encrypted::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Kdf {
   Pbkdf2(salt~ : Bytes, rounds~ : Int32, prf~ : String, length~ : Int32?)
   Pkcs12(salt~ : Bytes, rounds~ : Int32)
   Pbkdf1(salt~ : Bytes, rounds~ : Int32, md5~ : Bool)
-} derive(Eq, @debug.Debug)
+}
 pub fn Kdf::equal(Self, Self) -> Bool
 pub fn Kdf::not_equal(Self, Self) -> Bool
 pub fn Kdf::to_repr(Self) -> @debug.Repr

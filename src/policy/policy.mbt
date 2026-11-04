@@ -23,9 +23,10 @@
 
 ///|
 /// Why a certificate's policies could not be read.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   Malformed(String)
-} derive(Eq, Debug)
+}
 
 ///|
 /// anyPolicy (RFC 5280 §4.2.1.4): the identifier that stands for every policy.
@@ -33,6 +34,7 @@ pub let any_policy : String = "2.5.29.32.0"
 
 ///|
 /// The policy extensions of one certificate, as they bear on the tree.
+#derive(Eq, Debug)
 pub(all) struct Cert {
   /// certificatePolicies, when the extension is there. `None` is not "no policies" — it is a
   /// certificate that does not constrain them, which §6.1.3 treats as passing the parent's set
@@ -46,7 +48,7 @@ pub(all) struct Cert {
   inhibit_mapping : Int32?
   /// inhibitAnyPolicy: how many more certificates may use anyPolicy.
   inhibit_any : Int32?
-} derive(Eq, Debug)
+}
 
 ///|
 /// A certificate that constrains nothing, which is what a certificate with none of these

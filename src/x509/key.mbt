@@ -59,11 +59,12 @@ fn ml_dsa_arcs(kind : @mldsa.Kind) -> Array[Int32] {
 /// A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one (for
 /// an EC key, the named curve), and the key bits. Absent and NULL parameters both read as `None`,
 /// which is what every algorithm reachable from here means by either.
+#derive(Eq, Debug)
 pub(all) struct Spki {
   alg : String
   params : String?
   key : @asn1.Bits
-} derive(Eq, Debug)
+}
 
 ///|
 /// A public key as a signature can be checked against. An RSA or EC key is held with the digest

@@ -7,6 +7,7 @@
 /// `none` is not here and never will be. It is the algorithm that made
 /// "verified" mean "not verified" in a dozen libraries, and a type that cannot
 /// express it cannot be talked into accepting it.
+#derive(Eq, Debug)
 pub(all) enum Alg {
   HS256
   HS384
@@ -21,7 +22,7 @@ pub(all) enum Alg {
   ES384
   ES512
   EdDSA
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Alg with Eq::{equal, not_equal}
@@ -79,12 +80,13 @@ pub fn Alg::of(name : StringView) -> Alg raise Refused {
 /// expired: a debugging tool, an audit of tokens already collected, a migration
 /// that has to read what was issued last year. It is spelled out at the call
 /// site because the alternative is a verifier that quietly stopped checking.
+#derive(Eq, Debug)
 pub(all) enum Clock {
   /// Check `exp` and `nbf` against this instant, in Unix seconds.
   At(Int64)
   /// Do not look at the time claims at all.
   Ignored
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Clock with Eq::{equal, not_equal}
@@ -101,13 +103,14 @@ pub extend Clock with Debug::{to_repr}
 /// per-call argument is more specific than a policy assembled once; `sign` lets
 /// the base win, because the header it computes describes the signature it is
 /// about to make.
+#derive(Eq, Debug)
 pub(all) enum Wins {
   /// What the function starts from — the policy record, or the header the
   /// signer computes.
   Base
   /// What is layered over it — the per-call arguments, or the caller's `extra`.
   Extra
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Wins with Eq::{equal, not_equal}
@@ -145,6 +148,7 @@ pub(all) enum OnClash[T] {
 /// One of these is assembled once for a deployment and passed to every
 /// verification, which is what `jsonwebtoken`'s `Validation`, .NET's
 /// `TokenValidationParameters` and `jose`'s options object are for.
+#derive(Eq, Debug)
 pub(all) struct Policy {
   /// Seconds of slack on the time checks, for clocks that disagree.
   leeway : Int64
@@ -168,7 +172,7 @@ pub(all) struct Policy {
   /// Claims that must be present whatever their value. RFC 7519 makes none of
   /// them mandatory, so this starts empty.
   required : Array[String]
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Policy with Eq::{equal, not_equal}
@@ -228,6 +232,7 @@ pub fn Policy::new(
 /// Each reason is separate so a caller can map it to the right answer — an
 /// expired token deserves a different response from a forged one — and so a log
 /// says which check failed rather than that one did.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   /// Not three segments, a segment that is not base64url, or a header or
   /// payload that is not a JSON object.
@@ -252,7 +257,7 @@ pub(all) suberror Refused {
   Type(want~ : String, got~ : String)
   /// A claim the caller required is absent.
   Missing(claim~ : String)
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend Refused with Eq::{equal, not_equal}

@@ -10,10 +10,11 @@
 
 ///|
 /// A validity window, in seconds since the Unix epoch.
+#derive(Eq, Debug)
 pub(all) struct Validity {
   not_before : Int64
   not_after : Int64
-} derive(Eq, Debug)
+}
 
 ///|
 /// A parsed certificate. `tbs` is the exact encoding the signature covers and `raw` the whole

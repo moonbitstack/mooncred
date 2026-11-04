@@ -18,6 +18,7 @@ pub let eku_any : String = "2.5.29.37.0"
 /// their field number and contents, so a caller can see what was there instead of being told the
 /// extension was empty. In a name constraint an `Ip` is an address followed by its mask, eight or
 /// thirty-two octets; in a subjectAltName it is the bare address.
+#derive(Eq, Debug)
 pub(all) enum GeneralName {
   Dns(String)
   Email(String)
@@ -25,15 +26,16 @@ pub(all) enum GeneralName {
   Ip(Bytes)
   Dir(Name)
   Named(Int32, Bytes)
-} derive(Eq, Debug)
+}
 
 ///|
 /// A NameConstraints (RFC 5280 §4.2.1.10): the subtrees every name below the CA must fall in,
 /// and the ones none may.
+#derive(Eq, Debug)
 pub(all) struct Constraints {
   permitted : Array[GeneralName]
   excluded : Array[GeneralName]
-} derive(Eq, Debug)
+}
 
 ///|
 /// The extensions a certificate is judged on (RFC 5280 §4.2). `key_usage` bits are numbered from
@@ -43,6 +45,7 @@ pub(all) struct Constraints {
 /// likeliest issuer first. `unknown_critical` names the critical extensions this parser does not
 /// understand: §4.2 makes such a certificate unusable, and a caller can only obey that rule if it
 /// is told rather than left to assume the skip was safe.
+#derive(Eq, Debug)
 pub(all) struct Exts {
   san : Array[GeneralName]
   ca : Bool
@@ -53,7 +56,7 @@ pub(all) struct Exts {
   aki : Bytes?
   constraints : Constraints?
   unknown_critical : Array[String]
-} derive(Eq, Debug)
+}
 
 ///|
 let no_exts : Exts = {

@@ -3,23 +3,25 @@ package "moonbitstack/mooncred/jwt"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
   "moonbitstack/mooncrypt/spec",
 }
 
 // Values
-pub fn claims_unverified(StringView) -> Map[String, Json] raise Refused
+pub fn claims_unverified(StringView) -> Map[String, @json.Json] raise Refused
 
-pub fn header(StringView) -> Map[String, Json] raise Refused
+pub fn header(StringView) -> Map[String, @json.Json] raise Refused
 
 pub fn mac(() -> &@spec.Mac) -> Keyed
 
 pub let policy : Policy
 
-pub fn sign(Map[String, Json], Alg, &@spec.Signer, typ? : String?, extra? : Map[String, Json], wins? : Wins, clash? : OnClash[Map[String, Json]]) -> String
+pub fn sign(Map[String, @json.Json], Alg, &@spec.Signer, typ? : String?, extra? : Map[String, @json.Json], wins? : Wins, clash? : OnClash[Map[String, @json.Json]]) -> String
 
-pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, Json] raise Refused
+pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, @json.Json] raise Refused
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror Refused {
   Shape(String)
   Algorithm(want~ : String, got~ : String)
@@ -32,12 +34,13 @@ pub(all) suberror Refused {
   IssuedAt(at~ : Double)
   Type(want~ : String, got~ : String)
   Missing(claim~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn Refused::equal(Self, Self) -> Bool
 pub fn Refused::not_equal(Self, Self) -> Bool
 pub fn Refused::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub(all) enum Alg {
   HS256
   HS384
@@ -52,17 +55,18 @@ pub(all) enum Alg {
   ES384
   ES512
   EdDSA
-} derive(Eq, @debug.Debug)
+}
 pub fn Alg::equal(Self, Self) -> Bool
 pub fn Alg::name(Self) -> String
 pub fn Alg::not_equal(Self, Self) -> Bool
 pub fn Alg::of(StringView) -> Self raise Refused
 pub fn Alg::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Clock {
   At(Int64)
   Ignored
-} derive(Eq, @debug.Debug)
+}
 pub fn Clock::equal(Self, Self) -> Bool
 pub fn Clock::not_equal(Self, Self) -> Bool
 pub fn Clock::to_repr(Self) -> @debug.Repr
@@ -79,6 +83,7 @@ pub(all) enum OnClash[T] {
   Handle((T, T) -> T)
 }
 
+#derive(Eq, @debug.Debug)
 pub(all) struct Policy {
   leeway : Int64
   expiry : Bool
@@ -89,16 +94,17 @@ pub(all) struct Policy {
   subject : String?
   typ : String?
   required : Array[String]
-} derive(Eq, @debug.Debug)
+}
 pub fn Policy::equal(Self, Self) -> Bool
 pub fn Policy::new(leeway? : Int64, expiry? : Bool, not_before? : Bool, issued_at? : Bool, issuer? : String, audience? : Array[String], subject? : String, typ? : String, required? : Array[String]) -> Self
 pub fn Policy::not_equal(Self, Self) -> Bool
 pub fn Policy::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Wins {
   Base
   Extra
-} derive(Eq, @debug.Debug)
+}
 pub fn Wins::equal(Self, Self) -> Bool
 pub fn Wins::not_equal(Self, Self) -> Bool
 pub fn Wins::to_repr(Self) -> @debug.Repr

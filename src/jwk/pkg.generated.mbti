@@ -3,17 +3,19 @@ package "moonbitstack/mooncred/jwk"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
 }
 
 // Values
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror Refused {
   Shape(String)
   Missing(field~ : String)
   NotBase64(field~ : String)
   Unknown(kty~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn Refused::equal(Self, Self) -> Bool
 pub fn Refused::not_equal(Self, Self) -> Bool
 pub fn Refused::to_repr(Self) -> @debug.Repr
@@ -23,19 +25,20 @@ type Jwk
 pub fn Jwk::alg(Self) -> String?
 pub fn Jwk::id(Self) -> String?
 pub fn Jwk::is_private(Self) -> Bool
-pub fn Jwk::json(Self, secret? : Bool) -> Json
+pub fn Jwk::json(Self, secret? : Bool) -> @json.Json
 pub fn Jwk::material(Self) -> Material
 pub fn Jwk::ops(Self) -> Array[String]
 pub fn Jwk::parse(StringView) -> Self raise Refused
-pub fn Jwk::read(Json) -> Self raise Refused
+pub fn Jwk::read(@json.Json) -> Self raise Refused
 pub fn Jwk::usage(Self) -> String?
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Material {
   Oct(key~ : Bytes)
   Rsa(modulus~ : Bytes, exponent~ : Bytes, secret~ : Bytes?)
   Ec(curve~ : String, x~ : Bytes, y~ : Bytes, secret~ : Bytes?)
   Okp(curve~ : String, x~ : Bytes, secret~ : Bytes?)
-} derive(Eq, @debug.Debug)
+}
 pub fn Material::equal(Self, Self) -> Bool
 pub fn Material::not_equal(Self, Self) -> Bool
 pub fn Material::to_repr(Self) -> @debug.Repr
@@ -45,7 +48,7 @@ pub fn Set::by_id(Self, StringView) -> Jwk?
 pub fn Set::keys(Self) -> Array[Jwk]
 pub fn Set::parse(StringView, skip? : Bool) -> Self raise Refused
 pub fn Set::pick(Self, alg~ : String, id? : String, usage? : String?, first? : Bool) -> Jwk?
-pub fn Set::read(Json, skip? : Bool) -> Self raise Refused
+pub fn Set::read(@json.Json, skip? : Bool) -> Self raise Refused
 
 // Type aliases
 

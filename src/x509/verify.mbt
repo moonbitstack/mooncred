@@ -9,6 +9,7 @@
 ///|
 /// Why a chain was refused. `at` is the position in the chain as given — 0 the leaf, then the
 /// intermediates in the order they arrived — of the certificate the refusal is about.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   /// The certificate at `at` does not parse; the message says where it stopped.
   Malformed(at~ : Int32, String)
@@ -47,17 +48,18 @@ pub(all) suberror Refused {
   /// More name-constraint comparisons than the policy allows: a CA with thousands of subtrees
   /// over a leaf with thousands of names is a quadratic amount of work.
   Comparisons(limit~ : Int32)
-} derive(Eq, Debug)
+}
 
 ///|
 /// The key purpose the leaf must allow (RFC 5280 §4.2.1.12). `Any` asks for none and checks
 /// nothing; `Other` names a purpose by OID.
+#derive(Eq, Debug)
 pub(all) enum Usage {
   Server
   Client
   Any
   Other(String)
-} derive(Eq, Debug)
+}
 
 ///|
 fn Usage::oid(self : Usage) -> String? {
@@ -73,13 +75,14 @@ fn Usage::oid(self : Usage) -> String? {
 /// What a validation asks for and how far it may go. `depth` bounds the intermediates on the
 /// path, `budget` the signature checks spent finding it, `comparisons` the name-constraint
 /// comparisons, and `bits` the smallest RSA modulus a signature is accepted under.
+#derive(Eq, Debug)
 pub(all) struct Policy {
   usage : Usage
   depth : Int32
   budget : Int32
   comparisons : Int32
   bits : Int32
-} derive(Eq, Debug)
+}
 
 ///|
 /// A server certificate; webpki's limits — six intermediates, a hundred signature checks, a

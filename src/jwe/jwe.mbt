@@ -11,15 +11,17 @@
 
 ///|
 /// Why a token could not be sealed or opened.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   Malformed(String)
   Unsupported(String)
   /// The key does not open the token: the wrapped key would not unwrap, or the tag did not match.
   Key
-} derive(Eq, Debug)
+}
 
 ///|
 /// The key-management algorithm: how the content-encryption key reaches the recipient.
+#derive(Eq, Debug)
 pub(all) enum Alg {
   /// The shared key is the content-encryption key: no wrapped key at all.
   Dir
@@ -27,10 +29,11 @@ pub(all) enum Alg {
   A192Kw
   A256Kw
   RsaOaep256
-} derive(Eq, Debug)
+}
 
 ///|
 /// The content-encryption algorithm: authenticated encryption over the payload.
+#derive(Eq, Debug)
 pub(all) enum Enc {
   A128Gcm
   A192Gcm
@@ -39,7 +42,7 @@ pub(all) enum Enc {
   A128CbcHs256
   A192CbcHs384
   A256CbcHs512
-} derive(Eq, Debug)
+}
 
 ///|
 /// What a token is sealed to.

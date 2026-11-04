@@ -13,6 +13,7 @@
 
 ///|
 /// Why an encrypted key could not be read or written.
+#derive(Eq, Debug)
 pub(all) suberror Refused {
   /// The bytes are not an EncryptedPrivateKeyInfo this package understands.
   Malformed(String)
@@ -20,10 +21,11 @@ pub(all) suberror Refused {
   Unsupported(String)
   /// The octets do not decrypt under this passphrase.
   Passphrase
-} derive(Eq, Debug)
+}
 
 ///|
 /// The key derivation a file names, with what it needs to run.
+#derive(Eq, Debug)
 pub(all) enum Kdf {
   /// PBKDF2 (RFC 8018 §5.2): the salt, the round count, the pseudorandom function, and the key
   /// length when the file pins one.
@@ -32,11 +34,12 @@ pub(all) enum Kdf {
   Pkcs12(salt~ : Bytes, rounds~ : Int32)
   /// PBKDF1 (RFC 8018 §5.1), which the PKCS#5 PBES1 schemes use. `md5` is false for SHA-1.
   Pbkdf1(salt~ : Bytes, rounds~ : Int32, md5~ : Bool)
-} derive(Eq, Debug)
+}
 
 ///|
 /// A parsed EncryptedPrivateKeyInfo. `body` is the ciphertext; everything else is what is needed
 /// to turn it back into a PrivateKeyInfo.
+#derive(Eq, Debug)
 pub(all) struct Encrypted {
   raw : Bytes
   /// The `encryptionAlgorithm` OID: PBES2, or one of the PBES1 schemes.
@@ -49,7 +52,7 @@ pub(all) struct Encrypted {
   /// The GCM tag length in octets; zero when the cipher is not GCM.
   icv : Int32
   body : Bytes
-} derive(Eq, Debug)
+}
 
 ///|
 /// How to write an encrypted key. The first six are PBES2 with PBKDF2; the last two are the
