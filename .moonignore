@@ -5,3 +5,7 @@
 .git/
 _build/
 target/
+
+# The conformance runner in src/tools reads the suite CI downloads; it is not part of the
+# library anyone adds.
+src/tools/

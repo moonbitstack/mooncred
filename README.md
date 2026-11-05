@@ -345,6 +345,38 @@ CBOR is checked against RFC 8949 Appendix A item by item, and the three COSE
 structures against the layouts RFC 9052 §4.4, §5.3 and §6.3 print, byte for
 byte.
 
+## Conformance
+
+The path validator is measured against the C2SP [x509-limbo][limbo] suite at commit
+`519f4bc` of 2 November 2026. It holds 9,807 cases — a chain, a set of anchors, a
+time, and the verdict a validator is supposed to reach — of which 9,721 end here
+the way the suite says they should.
+
+Thirty-four are outside what `verify` takes: twenty-two ask about a revocation
+list, ten name an email address as the peer, and two constrain the key usage of
+the leaf. The other 52 are judged differently, and each of those is a rule this
+library states rather than an oversight:
+
+| The rule | Cases |
+|:--|:--|
+| The trusted anchor is a name and a key: its own validity, extensions and criticality are not examined. | `rfc5280::aki::critical-aki`, `rfc5280::aki::cross-signed-root-missing-aki`, `rfc5280::nc::permitted-dns-match-noncritical`, `rfc5280::root-inconsistent-ca-extensions`, `rfc5280::root-missing-basic-constraints`, `rfc5280::root-non-critical-basic-constraints`, `rfc5280::ski::root-missing-ski`, `rfc5280::unknown-critical-extension-root`, `rfc5280::validity::expired-root`, `webpki::aki::root-with-aki-all-fields`, `webpki::aki::root-with-aki-authoritycertissuer`, `webpki::aki::root-with-aki-authoritycertserialnumber`, `webpki::aki::root-with-aki-missing-keyidentifier`, `webpki::aki::root-with-aki-ski-mismatch`, `webpki::eku::root-has-eku` |
+| A leaf certificate that is itself a CA is refused. | `pathlen::validation-ignores-pathlen-in-leaf`, `rfc5280::ca-as-leaf` |
+| The profile rules that decide how a certificate may be issued, rather than whether a path is trustworthy: a common name that repeats its subject alternative name character for character, the criticality of a subject alternative name or a key purpose, the shape of an authority information access extension, wildcards over a public suffix. | `webpki::cn::case-mismatch`, `webpki::cn::ipv4-hex-mismatch`, `webpki::cn::ipv4-leading-zeros-mismatch`, `webpki::cn::ipv6-non-rfc5952-mismatch`, `webpki::cn::ipv6-uncompressed-mismatch`, `webpki::cn::ipv6-uppercase-mismatch`, `webpki::cn::not-in-san`, `webpki::cn::punycode-not-in-san`, `webpki::cn::utf8-vs-punycode-mismatch`, `webpki::eku::ee-anyeku`, `webpki::eku::ee-critical-eku`, `webpki::eku::ee-without-eku`, `webpki::malformed-aia`, `webpki::san::public-suffix-multi-label-wildcard-san`, `webpki::san::public-suffix-private-namespace-wildcard-san`, `webpki::san::san-critical-with-nonempty-subject` |
+| An authority key identifier or a subject key identifier, which the path algorithm never reads. | `rfc5280::aki::intermediate-missing-aki`, `rfc5280::aki::leaf-missing-aki`, `rfc5280::ski::critical-ski`, `rfc5280::ski::intermediate-missing-ski` |
+| The strength of the key that signs, which `policy.bits` bounds, and not the shape of the key the leaf carries. | `webpki::forbidden-dsa-leaf`, `webpki::forbidden-p192-leaf`, `webpki::forbidden-rsa-key-not-divisible-by-8-in-leaf`, `webpki::forbidden-rsa-not-divisible-by-8-in-root`, `webpki::forbidden-weak-rsa-in-leaf` |
+| The issuance rules for a certificate's own extensions, which a validator is not asked to audit: a serial number of zero or over twenty octets, `keyCertSign` on an end entity, name constraints in an end entity, the criticality of policy constraints. | `rfc5280::ca-empty-subject`, `rfc5280::leaf-ku-keycertsign`, `rfc5280::nc::not-allowed-in-ee-critical`, `rfc5280::nc::not-allowed-in-ee-noncritical`, `rfc5280::pc::ica-noncritical-pc`, `rfc5280::san::noncritical-with-empty-subject`, `rfc5280::san::underscore-dns`, `rfc5280::serial::too-long`, `rfc5280::serial::zero` |
+| A constraint written with a leading period, read as every name below it. | `rfc5280::nc::invalid-dnsname-leading-period` |
+
+The JOSE side is measured against [RFC 7520][7520]. The six keys of §3, and the
+compact JWE examples of §5.6 and §5.8, are read from the values the RFC prints and
+checked against them. The rest of RFC 7520 is outside these interfaces: §4's
+payloads are not claim sets, and §4.5 onwards and §5.9 onwards use the JSON
+serialisations, key management modes or compression that `jwt` and `jwe` do not
+write.
+
+[limbo]: https://github.com/C2SP/x509-limbo
+[7520]: https://www.rfc-editor.org/rfc/rfc7520
+
 ## What is not here yet
 
 PASETO, and SLH-DSA certificates: the primitives they need are not in

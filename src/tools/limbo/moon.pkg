@@ -1,0 +1,17 @@
+// The C2SP x509-limbo runner: the suite on standard input, one verdict per case on
+// standard output. Built and run by `.github/workflows/ci.yml` only, never published.
+supported_targets = "native"
+
+pkgtype(kind: "executable")
+
+options(
+  "native-stub": [ "stdin.c" ],
+)
+
+import {
+  "moonbitstack/mooncred/x509",
+  "moonbitstack/moondate",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+}
