@@ -108,8 +108,17 @@ def suite(refresh: bool) -> Path:
     if refresh or not CACHE.exists():
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         print(f"downloading x509-limbo at {COMMIT[:12]}", flush=True)
-        with urllib.request.urlopen(URL, timeout=120) as response:
-            CACHE.write_bytes(response.read())
+        part = CACHE.with_suffix(".json.part")
+        try:
+            with urllib.request.urlopen(URL, timeout=120) as response:
+                part.write_bytes(response.read())
+        except OSError as failed:
+            part.unlink(missing_ok=True)
+            sys.exit(
+                f"could not download {URL}: {failed}\n"
+                f"a copy of that file at {CACHE.relative_to(ROOT)} is enough to run"
+            )
+        part.replace(CACHE)
     digest = hashlib.sha256(CACHE.read_bytes()).hexdigest()
     if digest != DIGEST:
         sys.exit(f"{CACHE} is not the pinned suite: sha256 {digest}, expected {DIGEST}")
