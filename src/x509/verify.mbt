@@ -367,15 +367,17 @@ fn Search::grow(self : Search) -> Array[Cert]? raise Refused {
       }
     }
   }
-  let intermediates = self.path.length() - 1
-  let candidates = self.candidates(child)
-  if candidates.length() > 0 && intermediates >= self.policy.depth {
-    self.note(Depth(limit=self.policy.depth))
-    return None
-  }
-  for at in candidates {
+  let below = self.intermediates()
+  for at in self.candidates(child) {
     let cand = self.certs[at]
-    let ok = self.issuer_ok(cand, at, intermediates) catch {
+    // A self-issued certificate rolls a key over under the same name rather than adding a
+    // layer of authority, so it spends neither the depth budget nor a path length (RFC 5280
+    // §6.1.4 (l) and (m)).
+    if below + (if self_issued(cand) { 0 } else { 1 }) > self.policy.depth {
+      self.note(Depth(limit=self.policy.depth))
+      continue
+    }
+    let ok = self.issuer_ok(cand, at, below) catch {
       e => {
         self.note(e)
         false
@@ -390,6 +392,26 @@ fn Search::grow(self : Search) -> Array[Cert]? raise Refused {
     }
   }
   None
+}
+
+///|
+/// How many intermediates on the path so far count as layers of authority: every one but
+/// those that issued themselves.
+fn Search::intermediates(self : Search) -> Int32 {
+  let mut count = 0
+  for i in 1..<self.path.length() {
+    if !self_issued(self.path[i].0) {
+      count = count + 1
+    }
+  }
+  count
+}
+
+///|
+/// Whether a certificate names itself as its issuer. Such a certificate adds no name to the
+/// path and no authority over it; it is how a CA hands a key over to its successor.
+fn self_issued(c : Cert) -> Bool {
+  c.subject.raw == c.issuer.raw
 }
 
 ///|
@@ -454,6 +476,11 @@ fn Search::constrained(self : Search, anchor : Cert) -> Refused? raise Refused {
     guard ca.exts.constraints is Some(nc) else { continue }
     for i in 0..<k {
       let (c, at) = path[i]
+      // A self-issued certificate passes under a constraint untouched, unless it is the leaf
+      // itself, which is the certificate the constraint is finally about.
+      if i > 0 && self_issued(c) {
+        continue
+      }
       if self.outside(c, nc) is Some(name) {
         return Some(Constraint(at~, name~))
       }

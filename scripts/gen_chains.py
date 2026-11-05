@@ -151,6 +151,16 @@ def main():
     certs["weak_root"] = weak[0]
     certs["weak_leaf"] = build("weak leaf", leaf_key, weak, san=["a.example"])[0]
 
+    # A CA handing its key over: the second "ss ca" names itself as its issuer and carries a
+    # name outside the constraint above it, so it may do neither harm (RFC 5280 §6.1.4 (l), (m)).
+    ss = build("ss root", rsa_key(), ca=True, ku="ca", nc=([x509.DNSName("allowed.example")], []))
+    ss_old = build("ss ca", rsa_key(), ss, ca=True, path_len=1, ku="ca")
+    ss_new = build("ss ca", rsa_key(), ss_old, ca=True, path_len=1, ku="ca", san=["other.example"])
+    ss_below = build("ss below", rsa_key(), ss_new, ca=True, path_len=0, ku="ca")
+    certs["ss_root"], certs["ss_ca"], certs["ss_self"] = ss[0], ss_old[0], ss_new[0]
+    certs["ss_below"] = ss_below[0]
+    certs["ss_leaf"] = build("ss leaf", leaf_key, ss_below, san=["x.allowed.example"])[0]
+
     real = build("decoyed", rsa_key(), root, ca=True, ku="ca", ski=False)
     certs["decoyed_inter"] = real[0]
     certs["decoyed_leaf"] = build("decoyed leaf", leaf_key, real, san=["a.example"], aki=False)[0]

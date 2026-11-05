@@ -296,3 +296,38 @@ test "refused: reads as a sentence" {
     "the certificate does not name a.example",
   )
 }
+
+///|
+test "verify: a self-issued certificate spends no path length" {
+  let path = @x509.verify(
+    ders([ss_leaf, ss_below, ss_self, ss_ca])[:],
+    roots([ss_root]),
+    now~,
+    host="x.allowed.example",
+  )
+  assert_eq(names(path), ["ss leaf", "ss below", "ss ca", "ss ca", "ss root"])
+}
+
+///|
+test "verify: a self-issued certificate spends no depth" {
+  let chain = ders([ss_leaf, ss_below, ss_self, ss_ca])
+  let r = roots([ss_root])
+  assert_eq(
+    refused(chain, r, policy=@x509.Policy::new(depth=1)),
+    Depth(limit=1),
+  )
+  let path = @x509.verify(chain[:], r, now~, policy=@x509.Policy::new(depth=2))
+  assert_eq(path.length(), 5)
+}
+
+///|
+test "verify: a name constraint passes over a self-issued certificate" {
+  // `ss self` names other.example, which the root's permitted subtree does not hold; a
+  // certificate that issued itself is the way a CA rolls a key over and is not held to it.
+  let path = @x509.verify(
+    ders([ss_leaf, ss_below, ss_self, ss_ca])[:],
+    roots([ss_root]),
+    now~,
+  )
+  assert_eq(path.length(), 5)
+}
