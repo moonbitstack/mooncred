@@ -1,0 +1,16 @@
+// What this library writes, for another implementation to read. The program prints one JSON
+// object of tokens; `scripts/gen_jose_vectors.py` hands them to go-jose and records what it
+// recovered, and the tests replay both halves.
+pkgtype(kind: "executable")
+
+import {
+  "moonbitstack/mooncred/jwe",
+  "moonbitstack/mooncred/jwt",
+  "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/mac/hmac",
+  "moonbitstack/mooncrypt/sign/ecdsa",
+  "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonbase/base16",
+  "moonbitstack/moonjson/json",
+  "moonbitlang/core/encoding/utf8",
+}
