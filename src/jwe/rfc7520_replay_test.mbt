@@ -136,23 +136,17 @@ fn replay_jwe(text : String, number : String) -> Unit raise {
   let enc = @jwe.Enc::of(text_of(input, "enc")[:])
   let alg = @jwe.Alg::of(text_of(input, "alg")[:])
   let identity = opener_of(input)
-  // The two legacy key-management algorithms are in RFC 7520 and refused by default, so the
-  // examples are opened under the policy that accepts them.
+  // Every algorithm RFC 7520 uses is accepted by the default policy, including the two this
+  // library lets a deployment refuse; the examples are opened exactly as a caller would.
   if maybe_field(output, "compact") is Some(String(token)) {
-    assert_eq(
-      @jwe.decrypt(token[:], key=identity, alg~, enc~, policy=@jwe.legacy),
-      plain,
-    )
+    assert_eq(@jwe.decrypt(token[:], key=identity, alg~, enc~), plain)
   }
   for shape in ["json", "json_flat"] {
     if maybe_field(output, shape) is Some(document) {
       let written = @json.dumps(document)
-      let opened = @jwe.open(
-        written[:],
-        enc~,
-        unseal=[@jwe.Unseal::new(alg, identity)],
-        policy=@jwe.legacy,
-      )
+      let opened = @jwe.open(written[:], enc~, unseal=[
+        @jwe.Unseal::new(alg, identity),
+      ])
       assert_eq(opened.plain, plain)
       ignore(number)
     }
@@ -211,7 +205,6 @@ fn reseal_jwe(text : String, number : String) -> Unit raise {
     enc~,
     recipient=one,
     iv=iv_of(example)[:],
-    policy=@jwe.legacy,
   )
   assert_eq(written, published)
 }
@@ -258,7 +251,6 @@ fn reseal_json(
     aad~,
     shared~,
     layout~,
-    policy=@jwe.legacy,
   )
   let published = field(output, "json")
   assert_eq(@json.dumps(message, sort=true), @json.dumps(published, sort=true))
@@ -399,18 +391,13 @@ test "RFC 7520 §5.13: three recipients, three key-management algorithms" {
   let written = @json.dumps(document)
   // The first recipient is the one this caller holds, and it opens; the other two are offered
   // as well and do not.
-  let opened = @jwe.open(written[:], enc~, unseal~, policy=@jwe.legacy)
+  let opened = @jwe.open(written[:], enc~, unseal~)
   assert_eq(opened.plain, plain)
   assert_eq(opened.index, 0)
   // A message opened by its second recipient says so.
-  let second = @jwe.open(
-    written[:],
-    enc~,
-    unseal=[
-      @jwe.Unseal::new(@jwe.Alg::of("ECDH-ES+A256KW"[:]), identity_of(keys[1])),
-    ],
-    policy=@jwe.legacy,
-  )
+  let second = @jwe.open(written[:], enc~, unseal=[
+    @jwe.Unseal::new(@jwe.Alg::of("ECDH-ES+A256KW"[:]), identity_of(keys[1])),
+  ])
   assert_eq(second.plain, plain)
   assert_eq(second.index, 1)
 }

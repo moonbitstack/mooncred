@@ -185,8 +185,10 @@ returning a half-read container. A `PrivateKey` has no `Show`: it does not print
   the time checks off and is the wrong default.
 - Nothing here draws randomness. Every IV, salt, nonce, seed and ephemeral scalar is an
   argument, and reusing one is a break, not a convenience.
-- `RSA1_5` and `RSA-OAEP` with SHA-1 are refused unless the call passes `policy=@jwe.legacy`.
-  `RSA-OAEP-256` is accepted by default.
+- Every key-management algorithm RFC 7518 names is accepted by default, `RSA1_5` and `RSA-OAEP`
+  with SHA-1 included. A deployment that will not answer for those two passes
+  `policy=@jwe.strict`, and then neither sealing nor opening will use them;
+  `@jwe.Policy::new(rsa1_5=false)` refuses one of the two.
 - A `b64: false` payload with a dot in it, or one that is not ASCII, cannot travel in the
   compact form; sign it detached instead. A token whose `b64` disagrees with the caller's is
   refused, not reconciled.

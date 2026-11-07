@@ -428,10 +428,12 @@ allows:
 | `ECDH-ES+A128KW`, `+A192KW`, `+A256KW` | an elliptic-curve key | the content key under a derived key-encryption key |
 | `PBES2-HS256+A128KW`, `HS384+A192KW`, `HS512+A256KW` | a password | the content key under a key derived from it |
 
-`RSA1_5` and `RSA-OAEP` (SHA-1) are in RFC 7516 and are refused by default: the
-first carries a decryption oracle in its own construction, and the second is the
-same construction under a hash that is no longer a barrier. Both are still in
-the field, so both can be turned on, in one place:
+Every algorithm RFC 7518 names is supported and accepted without being asked,
+including `RSA1_5` and `RSA-OAEP` (SHA-1): a library that can only read what it
+would itself have written cannot be put in front of the traffic that already
+exists. The two can be refused — the first carries a padding oracle in its own
+construction, the second is the same construction under a hash that is no longer
+a barrier — and then neither sealing nor opening will use them:
 
 ```moonbit
 let shared = b"a 16-octet key"
@@ -448,8 +450,8 @@ let direct = @jwe.encrypt(
 )
 assert_eq(@jwe.decrypt(direct[:], key=Shared(shared), alg=Dir, enc=A128Gcm), b"card ending 4242")
 
-// A key wrapped under a password, by an algorithm that is not legacy but is
-// still a password: the salt and the count are the caller's.
+// A key wrapped under a password: the salt and the count are the caller's,
+// and the key is derived rather than held.
 let sealed = @jwe.encrypt(
   b"card ending 4242",
   key=Password(b"a passphrase for the auditor"),
@@ -468,10 +470,18 @@ let opened = @jwe.decrypt(
 )
 assert_eq(opened, b"card ending 4242")
 
-// The two legacy algorithms are refused unless the policy says otherwise; this
-// is the policy that says so, and it is the only place that decision is made.
-let accepting_legacy = @jwe.legacy
-assert_eq(accepting_legacy.legacy, true)
+// Every algorithm is accepted by default.
+assert_eq(@jwe.policy.rsa1_5, true)
+assert_eq(@jwe.policy.rsa_oaep, true)
+
+// A deployment that will not answer for the two says so once, and both
+// directions obey it.
+let only_modern = @jwe.strict
+assert_eq(only_modern.rsa1_5, false)
+
+// Or one at a time.
+let no_rsa1_5 = @jwe.Policy::new(rsa1_5=false)
+assert_eq(no_rsa1_5.rsa_oaep, true)
 ```
 
 The JSON serialisation is where the compact form runs out: one ciphertext for

@@ -218,8 +218,9 @@ pub fn seal_compact(
 /// itself can be talked into the weakest algorithm it supports. A token that names another
 /// algorithm is `Malformed` rather than opened under the caller's.
 ///
-/// `policy` decides whether the two legacy key-management algorithms are accepted at all; by
-/// default they are not.
+/// `policy` decides whether the two key-management algorithms that carry a security argument of
+/// their own are accepted at all. They are, by default; [`strict`] is the preset that refuses
+/// them, and it refuses them here as well as when sealing.
 pub fn decrypt(
   text : StringView,
   key~ : Identity,
@@ -277,7 +278,7 @@ fn seal_recipient(
 ) -> (Bytes, Bytes, Map[String, Json]) raise Refused {
   let alg = recipient.alg
   if !policy.allows(alg) {
-    raise Unsupported(alg.legacy_reason())
+    raise Unsupported(alg.refusal_reason())
   }
   if alg.derives() && recipient.cek is Some(_) {
     raise Malformed(
@@ -372,7 +373,7 @@ fn open_recipient(
   policy : Policy,
 ) -> Bytes raise Refused {
   if !policy.allows(alg) {
-    raise Unsupported(alg.legacy_reason())
+    raise Unsupported(alg.refusal_reason())
   }
   let key = match alg {
     Dir => {

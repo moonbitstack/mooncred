@@ -9,8 +9,8 @@
 /// A key-management algorithm (RFC 7518 §4).
 ///
 /// The list is deliberately complete rather than curated: a recipient that cannot name
-/// `RSA1_5` cannot read a message that uses it, and one that can read it still has to be told
-/// to accept it, which is what [`Policy`] is for.
+/// `RSA1_5` cannot read a message that uses it. Every one of them is accepted without being
+/// asked; [`Policy`] is where a deployment refuses the two it would rather not answer for.
 #derive(Eq, Debug)
 pub(all) enum Alg {
   /// The shared key is the content-encryption key: nothing is wrapped.
@@ -22,10 +22,11 @@ pub(all) enum Alg {
   A128GcmKw
   A192GcmKw
   A256GcmKw
-  /// RSAES-PKCS1-v1_5 (RFC 8017 §7.2), which is legacy and refused unless
-  /// `legacy` is set on the policy.
+  /// RSAES-PKCS1-v1_5 (RFC 8017 §7.2): no integrity of its own, and a padding oracle in its
+  /// construction. Accepted by default for the traffic that already uses it; [`strict`] refuses
+  /// it.
   Rsa1_5
-  /// RSAES-OAEP with SHA-1, which is legacy for the same reason.
+  /// RSAES-OAEP with SHA-1: the same padding, under a hash that is no longer a barrier.
   RsaOaep
   RsaOaep256
   /// ECDH-ES: the content key is derived, so there is exactly one recipient.
@@ -120,12 +121,12 @@ fn Alg::key_size(self : Alg, enc : Enc) -> Int32 {
 }
 
 ///|
-/// Why a key-management algorithm could not be used, in the words of the RFC that made it.
-fn Alg::legacy_reason(self : Alg) -> String {
+/// Why the policy in force refused this algorithm, in the words of the reason it was refused.
+fn Alg::refusal_reason(self : Alg) -> String {
   match self {
     Rsa1_5 =>
-      "RSA1_5 has no integrity of its own and is refused unless the policy accepts it"
-    RsaOaep => "RSA-OAEP with SHA-1 is refused unless the policy accepts it"
-    _ => ""
+      "RSA1_5 has no integrity of its own, and the policy in force refuses it"
+    RsaOaep => "RSA-OAEP with SHA-1 is refused by the policy in force"
+    _ => "the policy in force refuses " + self.name()
   }
 }

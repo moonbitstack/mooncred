@@ -15,8 +15,6 @@ pub fn encrypt(BytesView, key~ : Key, alg~ : Alg, enc~ : Enc, cek? : Bytes, iv~ 
 
 pub fn flattened(@json.Json) -> @json.Json raise Refused
 
-pub let legacy : Policy
-
 pub fn open(StringView, enc~ : Enc, unseal~ : Array[Unseal], policy? : Policy) -> Opened raise Refused
 
 pub let policy : Policy
@@ -24,6 +22,8 @@ pub let policy : Policy
 pub fn seal(BytesView, enc~ : Enc, recipients~ : Array[Recipient], iv~ : BytesView, aad? : BytesView, signed? : Map[String, @json.Json], shared? : Map[String, @json.Json], layout? : Layout, compress? : Bool, policy? : Policy) -> @json.Json raise Refused
 
 pub fn seal_compact(BytesView, enc~ : Enc, recipient~ : Recipient, iv~ : BytesView, compress? : Bool, policy? : Policy) -> String raise Refused
+
+pub let strict : Policy
 
 pub fn unwrap(BytesView, BytesView) -> Bytes raise Refused
 
@@ -119,10 +119,11 @@ pub(all) struct Opened {
 
 #derive(Eq, @debug.Debug)
 pub(all) struct Policy {
-  legacy : Bool
+  rsa1_5 : Bool
+  rsa_oaep : Bool
 }
 pub fn Policy::equal(Self, Self) -> Bool
-pub fn Policy::new(legacy? : Bool) -> Self
+pub fn Policy::new(rsa1_5? : Bool, rsa_oaep? : Bool) -> Self
 pub fn Policy::not_equal(Self, Self) -> Bool
 pub fn Policy::to_repr(Self) -> @debug.Repr
 

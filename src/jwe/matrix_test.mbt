@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Every key-management algorithm against every content-encryption algorithm, in the compact
-// serialisation: what goes in comes out, and the two legacy algorithms are refused unless the
-// caller asks for them.
+// serialisation: what goes in comes out, and the two algorithms a deployment may refuse are
+// refused only when it says so.
 
 ///|
 let matrix_iv12 : String = "000102030405060708090a0b"
@@ -148,9 +148,10 @@ test "jwe: the PBES2 algorithms round trip under every content algorithm" {
 }
 
 ///|
-/// The two legacy algorithms are in RFC 7516 and are refused by default; asking for them is one
-/// line at the call site and nothing else changes.
-test "jwe: RSA1_5 and RSA-OAEP are refused unless the policy accepts them" {
+/// The two algorithms that carry a security argument of their own. Both are supported, so both
+/// are sealed and opened without the caller saying anything; both can be refused, and then
+/// neither direction will use them.
+test "jwe: RSA1_5 and RSA-OAEP work by default and are refused by a strict policy" {
   let example = @json.loads(rfc7520_5_1)
   let jwk = match example {
     Object(members) =>
@@ -185,13 +186,42 @@ test "jwe: RSA1_5 and RSA-OAEP are refused unless the policy accepts them" {
         },
       ),
     }
-    // Refused when sealing, and when opening.
-    let refused = try {
+    // Accepted with no policy named at all: this is what "every algorithm is supported" means
+    // for the two that other libraries gate.
+    round_trip(recipient, @jwe.Enc::A128Gcm, @jwe.Identity::Rsa(private_key))
+    let token = @jwe.seal_compact(
+      b"payload",
+      enc=@jwe.Enc::A128Gcm,
+      recipient~,
+      iv=hex_octets(matrix_iv12)[:],
+    )
+    // Refused when sealing, and when opening, under the preset that refuses them.
+    let refused_seal = try {
       @jwe.seal_compact(
         b"payload",
         enc=@jwe.Enc::A128Gcm,
         recipient~,
         iv=hex_octets(matrix_iv12)[:],
+        policy=@jwe.strict,
+      )
+      |> ignore
+      false
+    } catch {
+      @jwe.Unsupported(reason) => {
+        // The refusal names the algorithm rather than saying something generic.
+        assert_true(reason.contains(alg.name()))
+        true
+      }
+      _ => false
+    }
+    assert_true(refused_seal)
+    let refused_open = try {
+      @jwe.decrypt(
+        token[:],
+        key=@jwe.Identity::Rsa(private_key),
+        alg~,
+        enc=@jwe.Enc::A128Gcm,
+        policy=@jwe.strict,
       )
       |> ignore
       false
@@ -199,13 +229,7 @@ test "jwe: RSA1_5 and RSA-OAEP are refused unless the policy accepts them" {
       @jwe.Unsupported(_) => true
       _ => false
     }
-    assert_true(refused)
-    round_trip(
-      recipient,
-      @jwe.Enc::A128Gcm,
-      @jwe.Identity::Rsa(private_key),
-      policy=@jwe.legacy,
-    )
+    assert_true(refused_open)
   }
 }
 

@@ -97,10 +97,7 @@ test "interop: the messages go-jose sealed open here" {
       "jwe-compact" => {
         let alg = @jwe.Alg::of(report_text(entry, "alg")[:])
         let enc = @jwe.Enc::of(report_text(entry, "enc")[:])
-        assert_eq(
-          @jwe.decrypt(token[:], key=identity, alg~, enc~, policy=@jwe.legacy),
-          plain,
-        )
+        assert_eq(@jwe.decrypt(token[:], key=identity, alg~, enc~), plain)
       }
       "jwe-json" => {
         let enc = @jwe.Enc::of(report_text(entry, "enc")[:])
@@ -113,12 +110,7 @@ test "interop: the messages go-jose sealed open here" {
             @jwe.Identity::Shared(interop_hex(interop_kek128)),
           ),
         ]
-        let opened = @jwe.open(
-          token[:],
-          enc~,
-          unseal=single,
-          policy=@jwe.legacy,
-        )
+        let opened = @jwe.open(token[:], enc~, unseal=single)
         assert_eq(opened.plain, plain)
         if name == "go-jwe-aad" {
           assert_eq(opened.aad, @utf8.encode("[\"go-jose\",2]"))

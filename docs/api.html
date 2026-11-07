@@ -472,7 +472,7 @@
     <h2>jwe</h2>
     <p class="spec"><a href="https://www.rfc-editor.org/rfc/rfc7516">JSON Web Encryption, RFC 7516</a> · <a href="https://www.rfc-editor.org/rfc/rfc7518">JSON Web Algorithms, RFC 7518</a> · <a href="https://www.rfc-editor.org/rfc/rfc3394">AES Key Wrap, RFC 3394</a> · <a href="https://www.rfc-editor.org/rfc/rfc1951">DEFLATE, RFC 1951</a></p>
     <p>Two serialisations: the compact one, which is five base64url parts and one recipient, and the JSON one, which can carry several recipients and additional authenticated data.</p>
-    <p class="toc"><a href="#jwe-Refused">Refused</a> <a href="#jwe-Alg">Alg</a> <a href="#jwe-Enc">Enc</a> <a href="#jwe-Identity">Identity</a> <a href="#jwe-Key">Key</a> <a href="#jwe-Layout">Layout</a> <a href="#jwe-Opened">Opened</a> <a href="#jwe-Policy">Policy</a> <a href="#jwe-Recipient">Recipient</a> <a href="#jwe-Unseal">Unseal</a> <a href="#jwe-legacy">legacy</a> <a href="#jwe-policy">policy</a> <a href="#jwe-decrypt">decrypt</a> <a href="#jwe-encrypt">encrypt</a> <a href="#jwe-flattened">flattened</a> <a href="#jwe-open">open</a> <a href="#jwe-seal">seal</a> <a href="#jwe-seal_compact">seal_compact</a> <a href="#jwe-unwrap">unwrap</a> <a href="#jwe-wrap">wrap</a></p>
+    <p class="toc"><a href="#jwe-Refused">Refused</a> <a href="#jwe-Alg">Alg</a> <a href="#jwe-Enc">Enc</a> <a href="#jwe-Identity">Identity</a> <a href="#jwe-Key">Key</a> <a href="#jwe-Layout">Layout</a> <a href="#jwe-Opened">Opened</a> <a href="#jwe-Policy">Policy</a> <a href="#jwe-Recipient">Recipient</a> <a href="#jwe-Unseal">Unseal</a> <a href="#jwe-policy">policy</a> <a href="#jwe-strict">strict</a> <a href="#jwe-decrypt">decrypt</a> <a href="#jwe-encrypt">encrypt</a> <a href="#jwe-flattened">flattened</a> <a href="#jwe-open">open</a> <a href="#jwe-seal">seal</a> <a href="#jwe-seal_compact">seal_compact</a> <a href="#jwe-unwrap">unwrap</a> <a href="#jwe-wrap">wrap</a></p>
 <div class="item" id="jwe-Refused">
 <div class="name"><span class="kind">error</span>Refused</div>
 <pre class="sig"><code>pub(all) suberror Refused {
@@ -504,7 +504,7 @@
   Pbes2Hs512A256Kw
 }</code></pre>
 <p>A key-management algorithm (RFC 7518 §4).</p>
-<p>The list is deliberately complete rather than curated: a recipient that cannot name <code>RSA1_5</code> cannot read a message that uses it, and one that can read it still has to be told to accept it, which is what [<code>Policy</code>] is for.</p>
+<p>The list is deliberately complete rather than curated: a recipient that cannot name <code>RSA1_5</code> cannot read a message that uses it. Every one of them is accepted without being asked; [<code>Policy</code>] is where a deployment refuses the two it would rather not answer for.</p>
 </div>
 <div class="item" id="jwe-Enc">
 <div class="name"><span class="kind">type</span>Enc</div>
@@ -563,10 +563,13 @@
 <div class="item" id="jwe-Policy">
 <div class="name"><span class="kind">type</span>Policy</div>
 <pre class="sig"><code>pub(all) struct Policy {
-  legacy : Bool
+  rsa1_5 : Bool
+  rsa_oaep : Bool
 }</code></pre>
-<p>What a message is allowed to ask for.</p>
-<p><code>RSA1_5</code> and <code>RSA-OAEP</code> with SHA-1 are in RFC 7516 and are refused here by default. The first has a decryption oracle written into its own history — Bleichenbacher's attack, and the padding oracle that came back with every implementation that answered too quickly — and the second is the same construction under a hash that is no longer a barrier. Both are still in the field, so both can be turned on, in one place, deliberately.</p>
+<p>What a message is allowed to ask for: one switch per key-management algorithm that has a reason to be switched.</p>
+<p>Everything RFC 7518 names is supported and accepted without being asked. A recipient that is handed a token with <code>RSA1_5</code> in it reads it, because a library that can only read what it would itself have written cannot be put in front of the traffic that already exists.</p>
+<p>The two switches are for the other direction. <code>RSA1_5</code>'s decryption is Bleichenbacher's oracle unless every failure is answered identically — this one scans the whole block before it decides and answers <code>Key</code> to all of them — but a key that never has to answer the question is stronger than one that answers it carefully, and a deployment that knows its traffic can say so with [<code>strict</code>]. <code>RSA-OAEP</code> with SHA-1 is the same construction under a hash whose collisions are cheap; it is here for the messages that already exist, not for new ones.</p>
+<p>There is no switch for the other fifteen. They are not a judgement call: AES key wrap, AES- GCM key wrap, RSAES-OAEP with SHA-256, ECDH-ES, PBES2 and <code>dir</code> are what a message should use, and a policy that made them optional would be a policy about nothing.</p>
 </div>
 <div class="item" id="jwe-Recipient">
 <div class="name"><span class="kind">type</span>Recipient</div>
@@ -594,22 +597,22 @@
 <p>A key a caller is willing to open a message with: one algorithm and the material for it.</p>
 <p>Several are offered at once, because a token addressed to several recipients names a different algorithm in each of their headers, and the reader does not know which of them is his until one of them opens. Nothing is tried that the caller did not offer.</p>
 </div>
-<div class="item" id="jwe-legacy">
-<div class="name"><span class="kind">let</span>legacy</div>
-<pre class="sig"><code>pub let legacy : Policy</code></pre>
-<p>The policy that accepts the two algorithms this library will not take by default.</p>
-</div>
 <div class="item" id="jwe-policy">
 <div class="name"><span class="kind">let</span>policy</div>
 <pre class="sig"><code>pub let policy : Policy</code></pre>
-<p>The policy a call uses when the caller does not say otherwise.</p>
+<p>The policy a call uses when the caller does not say otherwise: every algorithm RFC 7518 defines.</p>
+</div>
+<div class="item" id="jwe-strict">
+<div class="name"><span class="kind">let</span>strict</div>
+<pre class="sig"><code>pub let strict : Policy</code></pre>
+<p>The policy that refuses the two algorithms a deployment may not want to answer for. Neither sealing nor opening will use them while this is in force.</p>
 </div>
 <div class="item" id="jwe-decrypt">
 <div class="name"><span class="kind">fn</span>decrypt</div>
 <pre class="sig"><code>pub fn decrypt(StringView, key~ : Identity, alg~ : Alg, enc~ : Enc, policy? : Policy) -&gt; Bytes raise Refused</code></pre>
 <p>Open a compact token, checking that the header names the algorithms the caller expects.</p>
 <p>The expected <code>alg</code> and <code>enc</code> are arguments and not read from the header on the caller's behalf for the reason JWT's <code>none</code> exists: a recipient that believes whatever the token says about itself can be talked into the weakest algorithm it supports. A token that names another algorithm is <code>Malformed</code> rather than opened under the caller's.</p>
-<p><code>policy</code> decides whether the two legacy key-management algorithms are accepted at all; by default they are not.</p>
+<p><code>policy</code> decides whether the two key-management algorithms that carry a security argument of their own are accepted at all. They are, by default; [<code>strict</code>] is the preset that refuses them, and it refuses them here as well as when sealing.</p>
 </div>
 <div class="item" id="jwe-encrypt">
 <div class="name"><span class="kind">fn</span>encrypt</div>
@@ -673,8 +676,8 @@
 </div>
 <div class="item" id="jwe-Policy-new">
 <div class="name"><span class="kind">fn</span><span class="dim">Policy::</span>new</div>
-<pre class="sig"><code>pub fn Policy::new(legacy? : Bool) -&gt; Self</code></pre>
-<p>Build a policy by naming the parts that differ from the default.</p>
+<pre class="sig"><code>pub fn Policy::new(rsa1_5? : Bool, rsa_oaep? : Bool) -&gt; Self</code></pre>
+<p>Build a policy by naming the parts that differ from [<code>policy</code>].</p>
 </div>
 <div class="item" id="jwe-Recipient-new">
 <div class="name"><span class="kind">fn</span><span class="dim">Recipient::</span>new</div>
