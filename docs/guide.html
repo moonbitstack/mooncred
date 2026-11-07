@@ -86,6 +86,30 @@ if got.get("sub") is Some(String(sub)) {
 }<!-- /code:sign --></code></pre>
     <pre class="out"><!-- run:sign -->eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoZWtlMTIyOCIsImlzcyI6Im1vb25iaXRzdGFjayIsImF1ZCI6Im1vb25hcGkiLCJleHAiOjE3OTMyMzU2MDB9.XEBAfpv40yTEYS1th0JS4017XL1wOqY2zE9u-t3B3Cc
 subject: heke1228<!-- /run:sign --></pre>
+    <h3>A payload that is not a claim set.</h3>
+    <p>A JWS carries octets, and RFC 7797 lets those octets travel as themselves rather than as a base64url copy of themselves. The signature covers whatever the payload is — a document, a firmware image, a byte string a protocol defined — and the token can leave the payload out entirely, for a caller that sends it by another road.</p>
+    <pre class="listing"><code><!-- code:jws -->let key = @jwt.mac(fn() {
+  @hmac.Hmac::new(b"a shared secret nobody else has"[:], fn() {
+    @sha2.Hasher::new()
+  })
+})
+<span class="c">// A payload that is not a claims set, and that travels as itself (RFC 7797): the</span>
+<span class="c">// token carries no payload at all, and the octets are handed to the verifier.</span>
+let token = @jwt.sign_bytes(b"$.02", HS256, key, b64=false, detached=true)
+println(token)
+let back = @jwt.verify_bytes(token[:], HS256, key, b64=false, payload=b"$.02")
+println("recovered: \{@utf8.decode(back)}")
+<span class="c">// The JSON serialisation, where the name of the key travels beside the signature</span>
+<span class="c">// instead of inside it.</span>
+let message = @jwt.Message::new(b"{\"iss\":\"moonbitstack\"}").sign(
+  HS256,
+  key,
+  header=kid_of("2026-09"),
+)
+println(@json.dumps(message.flattened()))<!-- /code:jws --></code></pre>
+    <pre class="out"><!-- run:jws -->eyJhbGciOiJIUzI1NiIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..EUIR5b0iQbgSEc5lsW_hB3M7RRRmyBrk3al4QpHH-28
+recovered: $.02
+{"payload":"eyJpc3MiOiJtb29uYml0c3RhY2sifQ","protected":"eyJhbGciOiJIUzI1NiJ9","header":{"kid":"2026-09"},"signature":"Iqt_WpUSvAFopU_OfQ3SEoIsgX4yJH-Wp3C_6TCxiig"}<!-- /run:jws --></pre>
     <footer class="foot"><span>RFC 7515 · 7519</span><a class="next" href="#refuse">next · refusals</a></footer>
   </article>
 
@@ -413,6 +437,43 @@ let opened = @jwe.decrypt(jwe[:], key=Shared(shared), alg=Dir, enc=A256Gcm)
 println("opened: \{opened == b"card ending 4242"}")<!-- /code:jwe --></code></pre>
     <pre class="out"><!-- run:jwe -->eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..dHdlbHZlIGJ5dGVz.ei65CyO_XY2BQcdXOYzFkA.79HmCUv3Pctq4OGRlubD7Q
 opened: true<!-- /run:jwe --></pre>
+    <h3>Several recipients, and data that is not the payload.</h3>
+    <p>The JSON serialisation carries one ciphertext for several recipients: each has its own copy of the content key under its own key-management algorithm, and any one of them opens the same payload. <code>aad</code> is authenticated without being carried in the header, which is how a tenant name or a form identifier is bound to a message without being readable in it.</p>
+    <pre class="listing"><code><!-- code:jwerecipients -->let content = b"0001020304050607"[:].to_owned()
+let message = @jwe.seal(
+  b"card ending 4242",
+  enc=A128Gcm,
+  recipients=[
+    {
+      ..@jwe.Recipient::new(A128Kw, Shared(b"sixteen byte key")),
+      cek: Some(content),
+      header: kid_of("ops"),
+    },
+    {
+      ..@jwe.Recipient::new(
+        Pbes2Hs256A128Kw,
+        Password(b"a passphrase for the auditor"),
+      ),
+      cek: Some(content),
+      salt: Some(b"sixteen byte sal"),
+      count: Some(4096),
+      header: kid_of("audit"),
+    },
+  ],
+  iv=b"twelve bytes",
+  aad=b"tenant=42",
+)
+println(@json.dumps(message))
+let opened = @jwe.open(
+  @json.dumps(message)[:],
+  enc=A128Gcm,
+  unseal=[
+    @jwe.Unseal::new(A128Kw, Shared(b"sixteen byte key")),
+  ],
+)
+println("opened by recipient \{opened.index}, aad \{@utf8.decode(opened.aad)}")<!-- /code:jwerecipients --></code></pre>
+    <pre class="out"><!-- run:jwerecipients -->{"protected":"eyJlbmMiOiJBMTI4R0NNIn0","recipients":[{"header":{"alg":"A128KW","kid":"ops"},"encrypted_key":"FM5tULvWg_gbWfRHZyl-N_n89AE8tRf8"},{"header":{"alg":"PBES2-HS256+A128KW","kid":"audit","p2s":"c2l4dGVlbiBieXRlIHNhbA","p2c":4096},"encrypted_key":"G-WqPS_nQyLcf7zhznTfmyRu8H4yaWs8"}],"aad":"dGVuYW50PTQy","iv":"dHdlbHZlIGJ5dGVz","ciphertext":"NjujYqAb3DUJULt64fdveQ","tag":"60szW1olBDtE4tRcphFkNg"}
+opened by recipient 0, aad tenant=42<!-- /run:jwerecipients --></pre>
     <h3>A CBOR Web Token.</h3>
     <p>COSE is the same idea written in CBOR, for devices that count bytes. A CWT carries the claims a JWT would, signed here with Ed25519.</p>
     <pre class="listing"><code><!-- code:cose --><span class="c">// RFC 8032's first Ed25519 test key.</span>

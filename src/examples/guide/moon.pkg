@@ -20,4 +20,6 @@ import {
   "moonbitstack/mooncrypt/sign/ecdsa",
   "moonbitstack/mooncrypt/sign/ed25519",
   "moonbitstack/moonbase/base16",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitstack/moonjson/json",
 }

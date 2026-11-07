@@ -358,6 +358,8 @@ fn anchors() -> Unit {
 fn main raise {
   println("@@sign")
   let (token, key) = sign_one()
+  println("@@jws")
+  bytes_signed()
   println("@@refuse")
   refuse(token, key)
   println("@@policy")
@@ -380,8 +382,81 @@ fn main raise {
   revocation()
   println("@@jwe")
   encrypted()
+  println("@@jwerecipients")
+  several_recipients()
   println("@@cose")
   cwt()
   println("@@roots")
   anchors()
+}
+
+///|
+fn bytes_signed() -> Unit raise {
+  // @@listing jws
+  let key = @jwt.mac(fn() {
+    @hmac.Hmac::new(b"a shared secret nobody else has"[:], fn() {
+      @sha2.Hasher::new()
+    })
+  })
+  // A payload that is not a claims set, and that travels as itself (RFC 7797): the
+  // token carries no payload at all, and the octets are handed to the verifier.
+  let token = @jwt.sign_bytes(b"$.02", HS256, key, b64=false, detached=true)
+  println(token)
+  let back = @jwt.verify_bytes(token[:], HS256, key, b64=false, payload=b"$.02")
+  println("recovered: \{@utf8.decode(back)}")
+  // The JSON serialisation, where the name of the key travels beside the signature
+  // instead of inside it.
+  let message = @jwt.Message::new(b"{\"iss\":\"moonbitstack\"}").sign(
+    HS256,
+    key,
+    header=kid_of("2026-09"),
+  )
+  println(@json.dumps(message.flattened()))
+  // @@end
+}
+
+///|
+fn kid_of(kid : String) -> Map[String, Json] {
+  let out : Map[String, Json] = Map([])
+  out["kid"] = Json::string(kid)
+  out
+}
+
+///|
+fn several_recipients() -> Unit raise {
+  // @@listing jwerecipients
+  let content = b"0001020304050607"[:].to_owned()
+  let message = @jwe.seal(
+    b"card ending 4242",
+    enc=A128Gcm,
+    recipients=[
+      {
+        ..@jwe.Recipient::new(A128Kw, Shared(b"sixteen byte key")),
+        cek: Some(content),
+        header: kid_of("ops"),
+      },
+      {
+        ..@jwe.Recipient::new(
+          Pbes2Hs256A128Kw,
+          Password(b"a passphrase for the auditor"),
+        ),
+        cek: Some(content),
+        salt: Some(b"sixteen byte sal"),
+        count: Some(4096),
+        header: kid_of("audit"),
+      },
+    ],
+    iv=b"twelve bytes",
+    aad=b"tenant=42",
+  )
+  println(@json.dumps(message))
+  let opened = @jwe.open(
+    @json.dumps(message)[:],
+    enc=A128Gcm,
+    unseal=[
+      @jwe.Unseal::new(A128Kw, Shared(b"sixteen byte key")),
+    ],
+  )
+  println("opened by recipient \{opened.index}, aad \{@utf8.decode(opened.aad)}")
+  // @@end
 }
