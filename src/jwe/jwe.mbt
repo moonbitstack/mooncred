@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A JWE is two keys doing two jobs. A key-management algorithm puts a content-encryption key
-// somewhere the recipient can reach it — wrapped under a shared secret, encrypted to an RSA key —
-// and the content-encryption algorithm spends that key on the payload. `dir` is the degenerate
-// case where there is only one key and it is both.
+// somewhere the recipient can reach it — wrapped under a shared secret, encrypted to an RSA key,
+// derived from a password or from a curve — and the content-encryption algorithm spends that key
+// on the payload. `dir` is the degenerate case where there is only one key and it is both.
 //
 // The header is authenticated, not just carried: it is the additional data of the AEAD and the
 // first field of the CBC-HMAC tag, so an attacker who changes `alg` changes what verifies.
@@ -13,22 +13,13 @@
 /// Why a token could not be sealed or opened.
 #derive(Eq, Debug)
 pub(all) suberror Refused {
+  /// The message is not a token, or a field is of the wrong shape or length.
   Malformed(String)
+  /// The message asks for something this library does not do, or does not do unless asked.
   Unsupported(String)
-  /// The key does not open the token: the wrapped key would not unwrap, or the tag did not match.
+  /// The key does not open the token: the wrapped key would not unwrap, or the tag did not
+  /// match.
   Key
-}
-
-///|
-/// The key-management algorithm: how the content-encryption key reaches the recipient.
-#derive(Eq, Debug)
-pub(all) enum Alg {
-  /// The shared key is the content-encryption key: no wrapped key at all.
-  Dir
-  A128Kw
-  A192Kw
-  A256Kw
-  RsaOaep256
 }
 
 ///|
@@ -45,32 +36,8 @@ pub(all) enum Enc {
 }
 
 ///|
-/// What a token is sealed to.
-pub(all) enum Key {
-  Shared(Bytes)
-  Rsa(@rsa.PublicKey)
-}
-
-///|
-/// What a token is opened with.
-pub(all) enum Identity {
-  Shared(Bytes)
-  Rsa(@rsa.PrivateKey)
-}
-
-///|
-fn Alg::name(self : Alg) -> String {
-  match self {
-    Dir => "dir"
-    A128Kw => "A128KW"
-    A192Kw => "A192KW"
-    A256Kw => "A256KW"
-    RsaOaep256 => "RSA-OAEP-256"
-  }
-}
-
-///|
-fn Enc::name(self : Enc) -> String {
+/// The name this algorithm goes by in a header.
+pub fn Enc::name(self : Enc) -> String {
   match self {
     A128Gcm => "A128GCM"
     A192Gcm => "A192GCM"
@@ -82,19 +49,8 @@ fn Enc::name(self : Enc) -> String {
 }
 
 ///|
-fn alg_of(name : StringView) -> Alg raise Refused {
-  match name {
-    "dir" => Dir
-    "A128KW" => A128Kw
-    "A192KW" => A192Kw
-    "A256KW" => A256Kw
-    "RSA-OAEP-256" => RsaOaep256
-    _ => raise Unsupported("key management " + name.to_owned())
-  }
-}
-
-///|
-fn enc_of(name : StringView) -> Enc raise Refused {
+/// Read a content-encryption algorithm by name.
+pub fn Enc::of(name : StringView) -> Enc raise Refused {
   match name {
     "A128GCM" => A128Gcm
     "A192GCM" => A192Gcm
@@ -105,6 +61,12 @@ fn enc_of(name : StringView) -> Enc raise Refused {
     _ => raise Unsupported("content encryption " + name.to_owned())
   }
 }
+
+///|
+pub extend Enc with Eq::{equal, not_equal}
+
+///|
+pub extend Enc with Debug::{to_repr}
 
 ///|
 /// The size of a content-encryption key. For the CBC-HMAC algorithms this is the MAC key and the
@@ -145,10 +107,13 @@ fn Enc::tag_size(self : Enc) -> Int32 {
 /// first, so the recipient knows what to do before it does anything.
 ///
 /// `cek` is the content-encryption key and `iv` the nonce; both are the caller's, for the reason
-/// this library has no generator. Under `dir` the CEK is the shared key and `cek` must be left out;
-/// under any other algorithm it is required and must be `cek_size` octets. `seed` is what
-/// RSA-OAEP-256 needs to make its padding: the algorithm is randomised, and the randomness has to
-/// come from somewhere that is not here.
+/// this library has no generator. Under `dir` and ECDH-ES the key is derived and `cek` must be
+/// left out; under any other algorithm it is required and must be `enc.key_size` octets.
+///
+/// The randomness an algorithm needs is an argument too: `seed` is what RSA's padding and
+/// OAEP's mask draw, `salt` and `count` are the PBES2 derivation, `wrap_iv` is the nonce an
+/// AES-GCM wrap uses, and `ephemeral` is the ECDH-ES private scalar. Draw each of them fresh
+/// for every message; the tests pin them because a vector has to be reproducible.
 pub fn encrypt(
   plain : BytesView,
   key~ : Key,
@@ -157,6 +122,41 @@ pub fn encrypt(
   cek? : Bytes,
   iv~ : BytesView,
   seed~ : BytesView = b"",
+  header~ : Map[String, Json] = Map([]),
+  salt? : Bytes,
+  count? : Int32,
+  wrap_iv? : Bytes,
+  ephemeral? : Bytes,
+  compress~ : Bool = false,
+  policy~ : Policy = policy,
+) -> String raise Refused {
+  let recipient : Recipient = {
+    ..Recipient::new(alg, key),
+    header,
+    cek,
+    salt,
+    count,
+    iv: wrap_iv,
+    ephemeral,
+    seed: if seed.length() > 0 {
+      Some(seed.to_owned())
+    } else {
+      None
+    },
+  }
+  seal_compact(plain, enc~, recipient~, iv~, compress~, policy~)
+}
+
+///|
+/// The same seal, with the recipient spelled out: what a caller with several of the optional
+/// materials in hand wants, and what [`encrypt`] is written in terms of.
+pub fn seal_compact(
+  plain : BytesView,
+  enc~ : Enc,
+  recipient~ : Recipient,
+  iv~ : BytesView,
+  compress~ : Bool = false,
+  policy~ : Policy = policy,
 ) -> String raise Refused {
   if iv.length() != enc.iv_size() {
     raise Malformed(
@@ -165,81 +165,41 @@ pub fn encrypt(
       ", which wants \{enc.iv_size()}",
     )
   }
-  let content_key = match (alg, key) {
-    (Dir, Shared(k)) => {
-      if cek is Some(_) {
-        raise Malformed("dir takes its key from the shared one")
-      }
-      if k.length() != enc.key_size() {
-        raise Malformed("a shared key of the wrong length for " + enc.name())
-      }
-      k
-    }
-    (Dir, Rsa(_)) => raise Malformed("dir needs a shared key")
-    (_, _) => {
-      guard cek is Some(c) else {
-        raise Malformed("a content key is needed under " + alg.name())
-      }
-      if c.length() != enc.key_size() {
-        raise Malformed("a content key of the wrong length for " + enc.name())
-      }
-      c
+  let (content_key, wrapped, parameters) = seal_recipient(
+    enc, recipient, policy,
+  )
+  // The order the parameters go in: the algorithm, the recipient's name, what the algorithm
+  // generated, anything else the caller said, then the content encryption and its compression.
+  let fields : Map[String, Json] = Map([])
+  fields["alg"] = Json::string(recipient.alg.name())
+  for name, value in recipient.header {
+    if name == "kid" {
+      fields[name] = value
     }
   }
-  let wrapped = match alg {
-    Dir => b""
-    A128Kw | A192Kw | A256Kw => {
-      guard key is Shared(k) else {
-        raise Malformed(alg.name() + " needs a shared key")
-      }
-      match alg {
-        A128Kw =>
-          if k.length() != 16 {
-            raise Malformed("an A128KW key is sixteen octets")
-          }
-        A192Kw =>
-          if k.length() != 24 {
-            raise Malformed("an A192KW key is twenty-four octets")
-          }
-        A256Kw =>
-          if k.length() != 32 {
-            raise Malformed("an A256KW key is thirty-two octets")
-          }
-        _ => ()
-      }
-      wrap(k[:], content_key[:])
-    }
-    RsaOaep256 => {
-      guard key is Rsa(k) else {
-        raise Malformed("RSA-OAEP-256 needs an RSA key")
-      }
-      if seed.length() == 0 {
-        raise Malformed("RSA-OAEP-256 needs a seed for its padding")
-      }
-      k.encrypt(
-        content_key[:],
-        seed~,
-        digest=@rsa.Sha256,
-        mgf=@rsa.Sha256,
-        label=b"",
-      ) catch {
-        _ => raise Malformed("the RSA key cannot encrypt under OAEP")
-      }
+  for name, value in parameters {
+    fields[name] = value
+  }
+  for name, value in recipient.header {
+    if name != "kid" && name != "alg" && name != "enc" && name != "zip" {
+      fields[name] = value
     }
   }
-  let head = Json::object({
-    "alg": Json::string(alg.name()),
-    "enc": Json::string(enc.name()),
-  })
-  let header = b64(@utf8.encode(@json.dumps(head)))
+  fields["enc"] = Json::string(enc.name())
+  if compress {
+    fields["zip"] = Json::string("DEF")
+  }
+  let text = @json.dumps(Json::object(fields))
+  let head = b64(@utf8.encode(text))
+  let body = if compress { squeeze(plain) } else { plain.to_owned() }
   let (cipher, tag) = content_seal(
     enc,
     content_key,
     iv,
-    plain,
-    @utf8.encode(header),
+    body[:],
+    @utf8.encode(head),
   )
-  header +
+  head +
   "." +
   b64(wrapped) +
   "." +
@@ -251,95 +211,45 @@ pub fn encrypt(
 }
 
 ///|
-/// Open a token, checking that the header names the algorithms the caller expects.
+/// Open a compact token, checking that the header names the algorithms the caller expects.
 ///
 /// The expected `alg` and `enc` are arguments and not read from the header on the caller's behalf
 /// for the reason JWT's `none` exists: a recipient that believes whatever the token says about
 /// itself can be talked into the weakest algorithm it supports. A token that names another
 /// algorithm is `Malformed` rather than opened under the caller's.
+///
+/// `policy` decides whether the two legacy key-management algorithms are accepted at all; by
+/// default they are not.
 pub fn decrypt(
   text : StringView,
   key~ : Identity,
   alg~ : Alg,
   enc~ : Enc,
+  policy~ : Policy = policy,
 ) -> Bytes raise Refused {
   let parts = split(text)
   let (head, wrapped, iv, cipher, tag) = match parts {
     [h, w, i, c, t] => (h, w, i, c, t)
     _ => raise Malformed("a compact JWE is five dot-separated parts")
   }
-  let raw_header = b64_decode(head)
-  let header_text = @utf8.decode(raw_header) catch {
-    _ => raise Malformed("the header is not UTF-8")
+  let fields = object_of(b64_decode(head), "header")
+  let named = named_alg(fields)
+  let content = named_enc(fields)
+  if named != alg {
+    raise Malformed("the token is " + named.name() + ", not " + alg.name())
   }
-  let header = @json.loads(header_text) catch {
-    _ => raise Malformed("the header is not JSON")
+  if content != enc {
+    raise Malformed("the token is " + content.name() + ", not " + enc.name())
   }
-  let named = match header {
-    Object(fields) => {
-      let a = match fields.get("alg") {
-        Some(Json::String(s)) => s
-        _ => raise Malformed("the header names no algorithm")
-      }
-      let e = match fields.get("enc") {
-        Some(Json::String(s)) => s
-        _ => raise Malformed("the header names no content encryption")
-      }
-      (a, e)
-    }
-    _ => raise Malformed("the header is not an object")
-  }
-  let (a, e) = named
-  if alg_of(a) != alg {
-    raise Malformed("the token is " + a + ", not " + alg.name())
-  }
-  if enc_of(e) != enc {
-    raise Malformed("the token is " + e + ", not " + enc.name())
-  }
-  let content_key = match alg {
-    Dir =>
-      match key {
-        Shared(k) =>
-          if k.length() != enc.key_size() {
-            raise Malformed(
-              "a shared key of the wrong length for " + enc.name(),
-            )
-          } else {
-            k
-          }
-        Rsa(_) => raise Malformed("dir needs a shared key")
-      }
-    A128Kw | A192Kw | A256Kw => {
-      let kek = match key {
-        Shared(k) => k
-        Rsa(_) => raise Malformed(alg.name() + " needs a shared key")
-      }
-      let opened = unwrap(kek[:], b64_decode(wrapped)) catch { _ => raise Key }
-      if opened.length() != enc.key_size() {
-        raise Key
-      }
-      opened
-    }
-    RsaOaep256 => {
-      let private_key = match key {
-        Rsa(k) => k
-        Shared(_) => raise Malformed("RSA-OAEP-256 needs an RSA key")
-      }
-      let opened = private_key.decrypt(
-        b64_decode(wrapped),
-        digest=@rsa.Sha256,
-        mgf=@rsa.Sha256,
-        label=b"",
-      ) catch {
-        _ => raise Key
-      }
-      if opened.length() != enc.key_size() {
-        raise Key
-      }
-      opened
-    }
-  }
-  content_open(
+  let content_key = open_recipient(
+    enc,
+    alg,
+    key,
+    b64_decode(wrapped),
+    fields,
+    policy,
+  )
+  let plain = content_open(
     enc,
     content_key,
     b64_decode(iv),
@@ -347,7 +257,291 @@ pub fn decrypt(
     b64_decode(tag),
     @utf8.encode(head),
   )
+  match fields.get("zip") {
+    Some(_) => loosen(plain, fields)
+    None => plain
+  }
 }
+
+// -------------------------------------------------------------- one recipient
+
+///|
+/// Put a content key where one recipient can reach it, and say in the header what was done.
+///
+/// The content key comes back with the encrypted one because the two algorithms that derive it
+/// are also the two that carry nothing.
+fn seal_recipient(
+  enc : Enc,
+  recipient : Recipient,
+  policy : Policy,
+) -> (Bytes, Bytes, Map[String, Json]) raise Refused {
+  let alg = recipient.alg
+  if !policy.allows(alg) {
+    raise Unsupported(alg.legacy_reason())
+  }
+  if alg.derives() && recipient.cek is Some(_) {
+    raise Malformed(
+      alg.name() + " derives the content key; there is none to give",
+    )
+  }
+  let parameters : Map[String, Json] = Map([])
+  let content_key = match alg {
+    Dir => {
+      guard recipient.key is Shared(k) else {
+        raise Malformed("dir needs a shared key")
+      }
+      if k.length() != enc.key_size() {
+        raise Malformed("a shared key of the wrong length for " + enc.name())
+      }
+      k
+    }
+    EcdhEs => agree_and_derive(recipient, alg, enc, enc.key_size(), parameters)
+    _ => given_content_key(recipient, enc)
+  }
+  let wrapped = match alg {
+    Dir | EcdhEs => b""
+    A128Kw | A192Kw | A256Kw => {
+      guard recipient.key is Shared(k) else {
+        raise Malformed(alg.name() + " needs a shared key")
+      }
+      expect_size(k, alg.key_size(enc), alg)
+      wrap(k[:], content_key[:])
+    }
+    A128GcmKw | A192GcmKw | A256GcmKw => {
+      guard recipient.key is Shared(k) else {
+        raise Malformed(alg.name() + " needs a shared key")
+      }
+      expect_size(k, alg.key_size(enc), alg)
+      guard recipient.iv is Some(nonce) else {
+        raise Malformed(alg.name() + " needs a nonce for its wrap")
+      }
+      let (cipher, tag) = gcm_kw_wrap(k[:], content_key[:], nonce[:])
+      parameters["tag"] = Json::string(b64(tag))
+      parameters["iv"] = Json::string(b64(nonce))
+      cipher
+    }
+    Rsa1_5 | RsaOaep | RsaOaep256 => {
+      guard recipient.key is Rsa(k) else {
+        raise Malformed(alg.name() + " needs an RSA key")
+      }
+      guard recipient.seed is Some(seed) else {
+        raise Malformed(alg.name() + " needs a seed for its padding")
+      }
+      rsa_wrap(alg, k, content_key[:], seed[:])
+    }
+    EcdhEsA128Kw | EcdhEsA192Kw | EcdhEsA256Kw => {
+      let kek = agree_and_derive(
+        recipient,
+        alg,
+        enc,
+        alg.key_size(enc),
+        parameters,
+      )
+      wrap(kek[:], content_key[:])
+    }
+    Pbes2Hs256A128Kw | Pbes2Hs384A192Kw | Pbes2Hs512A256Kw => {
+      guard recipient.key is Password(password) else {
+        raise Malformed(alg.name() + " needs a password")
+      }
+      guard recipient.salt is Some(salt) else {
+        raise Malformed(alg.name() + " needs a salt")
+      }
+      guard recipient.count is Some(count) else {
+        raise Malformed(alg.name() + " needs an iteration count")
+      }
+      let kek = pbes2_kek(alg, password[:], salt[:], count)
+      parameters["p2s"] = Json::string(b64(salt))
+      parameters["p2c"] = Json::number(
+        count.to_double(),
+        repr=count.to_string(),
+      )
+      wrap(kek[:], content_key[:])
+    }
+  }
+  (content_key, wrapped, parameters)
+}
+
+///|
+/// Recover the content key of one recipient.
+fn open_recipient(
+  enc : Enc,
+  alg : Alg,
+  identity : Identity,
+  wrapped : BytesView,
+  header : Map[String, Json],
+  policy : Policy,
+) -> Bytes raise Refused {
+  if !policy.allows(alg) {
+    raise Unsupported(alg.legacy_reason())
+  }
+  let key = match alg {
+    Dir => {
+      guard identity is Shared(k) else {
+        raise Malformed("dir needs a shared key")
+      }
+      if k.length() != enc.key_size() {
+        raise Malformed("a shared key of the wrong length for " + enc.name())
+      }
+      k
+    }
+    EcdhEs => agree_and_recover(enc, alg, identity, enc.key_size(), header)
+    A128Kw | A192Kw | A256Kw => {
+      guard identity is Shared(k) else {
+        raise Malformed(alg.name() + " needs a shared key")
+      }
+      expect_size(k, alg.key_size(enc), alg)
+      unwrap(k[:], wrapped) catch {
+        _ => raise Key
+      }
+    }
+    A128GcmKw | A192GcmKw | A256GcmKw => {
+      guard identity is Shared(k) else {
+        raise Malformed(alg.name() + " needs a shared key")
+      }
+      expect_size(k, alg.key_size(enc), alg)
+      let nonce = match header.get("iv") {
+        Some(String(text)) => unwrap_b64(text)
+        _ => raise Malformed(alg.name() + " says no nonce")
+      }
+      let tag = match header.get("tag") {
+        Some(String(text)) => unwrap_b64(text)
+        _ => raise Malformed(alg.name() + " says no tag")
+      }
+      gcm_kw_unwrap(k[:], wrapped, tag[:], nonce[:])
+    }
+    Rsa1_5 | RsaOaep | RsaOaep256 => {
+      guard identity is Rsa(k) else {
+        raise Malformed(alg.name() + " needs an RSA key")
+      }
+      rsa_unwrap(alg, k, wrapped)
+    }
+    EcdhEsA128Kw | EcdhEsA192Kw | EcdhEsA256Kw => {
+      let kek = agree_and_recover(enc, alg, identity, alg.key_size(enc), header)
+      unwrap(kek[:], wrapped) catch {
+        _ => raise Key
+      }
+    }
+    Pbes2Hs256A128Kw | Pbes2Hs384A192Kw | Pbes2Hs512A256Kw => {
+      guard identity is Password(password) else {
+        raise Malformed(alg.name() + " needs a password")
+      }
+      let salt = match header.get("p2s") {
+        Some(String(text)) => unwrap_b64(text)
+        _ => raise Malformed(alg.name() + " says no salt")
+      }
+      let count = match header.get("p2c") {
+        Some(Number(value, ..)) => value.to_int()
+        _ => raise Malformed(alg.name() + " says no iteration count")
+      }
+      let kek = pbes2_kek(alg, password[:], salt[:], count)
+      unwrap(kek[:], wrapped) catch {
+        _ => raise Key
+      }
+    }
+  }
+  if key.length() != enc.key_size() {
+    raise Key
+  }
+  key
+}
+
+///|
+/// The content key a recipient was given, checked against the content algorithm.
+fn given_content_key(recipient : Recipient, enc : Enc) -> Bytes raise Refused {
+  match recipient.cek {
+    Some(cek) =>
+      if cek.length() != enc.key_size() {
+        raise Malformed("a content key of the wrong length for " + enc.name())
+      } else {
+        cek
+      }
+    None =>
+      raise Malformed("a content key is needed under " + recipient.alg.name())
+  }
+}
+
+///|
+fn expect_size(key : BytesView, want : Int32, alg : Alg) -> Unit raise Refused {
+  if key.length() != want {
+    raise Malformed(
+      "a \{alg.name()} key is \{want} octets, not \{key.length()}",
+    )
+  }
+}
+
+///|
+/// Agree a secret with the recipient and derive from it, for sealing.
+fn agree_and_derive(
+  recipient : Recipient,
+  alg : Alg,
+  enc : Enc,
+  len : Int32,
+  parameters : Map[String, Json],
+) -> Bytes raise Refused {
+  guard recipient.key is Agreement(curve, point) else {
+    raise Malformed(alg.name() + " needs an elliptic-curve public key")
+  }
+  guard recipient.ephemeral is Some(scalar) else {
+    raise Malformed(alg.name() + " needs an ephemeral key")
+  }
+  let z = agree(scalar[:], point, curve)
+  parameters["epk"] = Json::object(epk_of(scalar[:], curve))
+  let apu = party_info(recipient.header, "apu")
+  let apv = party_info(recipient.header, "apv")
+  let algid = if alg is EcdhEs { enc.name() } else { alg.name() }
+  concat_key(z[:], algid[:], apu[:], apv[:], len * 8)
+}
+
+///|
+/// Agree a secret with the sender and derive from it, for opening.
+fn agree_and_recover(
+  enc : Enc,
+  alg : Alg,
+  identity : Identity,
+  len : Int32,
+  header : Map[String, Json],
+) -> Bytes raise Refused {
+  guard identity is Agreement(curve, scalar) else {
+    raise Malformed(alg.name() + " needs an elliptic-curve private key")
+  }
+  let epk = match header.get("epk") {
+    Some(Object(fields)) => fields
+    _ => raise Malformed(alg.name() + " says no ephemeral key")
+  }
+  let (theirs, point) = point_of_epk(epk)
+  if theirs != curve {
+    raise Malformed("an ephemeral key on another curve")
+  }
+  let z = agree(scalar[:], point[:], curve)
+  let apu = party_info(header, "apu")
+  let apv = party_info(header, "apv")
+  let algid = if alg is EcdhEs { enc.name() } else { alg.name() }
+  concat_key(z[:], algid[:], apu[:], apv[:], len * 8)
+}
+
+// --------------------------------------------------------------- compression
+
+///|
+/// `zip: DEF`: the payload travels deflated (RFC 1951), which is what makes a JWE of a
+/// document smaller than the document.
+fn squeeze(plain : BytesView) -> Bytes {
+  @deflate.deflate(plain)
+}
+
+///|
+fn loosen(plain : Bytes, fields : Map[String, Json]) -> Bytes raise Refused {
+  match fields.get("zip") {
+    Some(String("DEF")) =>
+      @deflate.inflate(plain[:]) catch {
+        _ => raise Malformed("the payload does not inflate")
+      }
+    Some(String(other)) => raise Unsupported("compression " + other)
+    Some(_) => raise Malformed("zip is a string")
+    None => plain
+  }
+}
+
+// -------------------------------------------------------------- content crypto
 
 ///|
 /// Encrypt and authenticate the payload: `(ciphertext, tag)`.
@@ -384,7 +578,7 @@ fn content_seal(
 }
 
 ///|
-/// The inverse: `Malformed` when the tag does not match, which is how a wrong key and an edited
+/// The inverse: `Key` when the tag does not match, which is how a wrong key and an edited
 /// payload are told apart from a good one.
 fn content_open(
   enc : Enc,
@@ -535,10 +729,43 @@ fn hasher(enc : Enc) -> &@spec.Hash {
   }
 }
 
+// ------------------------------------------------------------------ the pieces
+
+///|
+/// A header object read from bytes.
+fn object_of(raw : Bytes, what : String) -> Map[String, Json] raise Refused {
+  let text = @utf8.decode(raw) catch {
+    _ => raise Malformed("the \{what} is not UTF-8")
+  }
+  let value = @json.loads(text[:]) catch {
+    _ => raise Malformed("the \{what} is not JSON")
+  }
+  match value {
+    Object(fields) => fields
+    _ => raise Malformed("the \{what} is not an object")
+  }
+}
+
+///|
+fn named_alg(fields : Map[String, Json]) -> Alg raise Refused {
+  match fields.get("alg") {
+    Some(String(name)) => Alg::of(name[:])
+    _ => raise Malformed("the header names no algorithm")
+  }
+}
+
+///|
+fn named_enc(fields : Map[String, Json]) -> Enc raise Refused {
+  match fields.get("enc") {
+    Some(String(name)) => Enc::of(name[:])
+    _ => raise Malformed("the header names no content encryption")
+  }
+}
+
 ///|
 /// base64url without padding, the only encoding the compact serialisation uses.
-fn b64(bytes : Bytes) -> String {
-  @base64.encode(bytes[:], kind=Url, padding=false)
+fn b64(bytes : BytesView) -> String {
+  @base64.encode(bytes, kind=Url, padding=false)
 }
 
 ///|
@@ -583,15 +810,3 @@ pub extend Refused with Eq::{equal, not_equal}
 
 ///|
 pub extend Refused with Debug::{to_repr}
-
-///|
-pub extend Alg with Eq::{equal, not_equal}
-
-///|
-pub extend Alg with Debug::{to_repr}
-
-///|
-pub extend Enc with Eq::{equal, not_equal}
-
-///|
-pub extend Enc with Debug::{to_repr}

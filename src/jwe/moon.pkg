@@ -1,18 +1,25 @@
 // JSON Web Encryption, RFC 7516: https://www.rfc-editor.org/rfc/rfc7516
 // JSON Web Algorithms, RFC 7518: https://www.rfc-editor.org/rfc/rfc7518
 // AES Key Wrap, RFC 3394: https://www.rfc-editor.org/rfc/rfc3394
+// DEFLATE, RFC 1951: https://www.rfc-editor.org/rfc/rfc1951
 //
-// The compact serialisation only, which is the one that travels in a header or a URL: five
-// base64url parts — the header, the wrapped key, the IV, the ciphertext and the tag.
+// Two serialisations: the compact one, which is five base64url parts and one recipient, and the
+// JSON one, which can carry several recipients and additional authenticated data.
 import {
   "moonbitstack/mooncrypt/cipher/aes",
   "moonbitstack/mooncrypt/aead/gcm",
+  "moonbitstack/mooncrypt/curve",
   "moonbitstack/mooncrypt/hash/sha2",
+  "moonbitstack/mooncrypt/kdf/concat",
+  "moonbitstack/mooncrypt/kdf/pbkdf2",
+  "moonbitstack/mooncrypt/kex/ecdh",
   "moonbitstack/mooncrypt/mac/hmac",
   "moonbitstack/mooncrypt/rsa",
+  "moonbitstack/mooncrypt/sign/ecdsa",
   "moonbitstack/mooncrypt/spec",
   "moonbitstack/moonbase/base64",
   "moonbitstack/moonjson/json",
+  "moonbitstack/moonzip/deflate",
   "moonbitlang/core/encoding/utf8",
 }
 
@@ -22,3 +29,7 @@ import {
   "moonbitstack/moonbase/base16",
   "moonbitstack/mooncred/x509",
 } for "wbtest"
+
+import {
+  "moonbitstack/moonbase/base16",
+} for "test"

@@ -3,13 +3,27 @@ package "moonbitstack/mooncred/jwe"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+  "moonbitstack/mooncrypt/curve",
   "moonbitstack/mooncrypt/rsa",
 }
 
 // Values
-pub fn decrypt(StringView, key~ : Identity, alg~ : Alg, enc~ : Enc) -> Bytes raise Refused
+pub fn decrypt(StringView, key~ : Identity, alg~ : Alg, enc~ : Enc, policy? : Policy) -> Bytes raise Refused
 
-pub fn encrypt(BytesView, key~ : Key, alg~ : Alg, enc~ : Enc, cek? : Bytes, iv~ : BytesView, seed? : BytesView) -> String raise Refused
+pub fn encrypt(BytesView, key~ : Key, alg~ : Alg, enc~ : Enc, cek? : Bytes, iv~ : BytesView, seed? : BytesView, header? : Map[String, @json.Json], salt? : Bytes, count? : Int32, wrap_iv? : Bytes, ephemeral? : Bytes, compress? : Bool, policy? : Policy) -> String raise Refused
+
+pub fn flattened(@json.Json) -> @json.Json raise Refused
+
+pub let legacy : Policy
+
+pub fn open(StringView, enc~ : Enc, unseal~ : Array[Unseal], policy? : Policy) -> Opened raise Refused
+
+pub let policy : Policy
+
+pub fn seal(BytesView, enc~ : Enc, recipients~ : Array[Recipient], iv~ : BytesView, aad? : BytesView, signed? : Map[String, @json.Json], shared? : Map[String, @json.Json], layout? : Layout, compress? : Bool, policy? : Policy) -> @json.Json raise Refused
+
+pub fn seal_compact(BytesView, enc~ : Enc, recipient~ : Recipient, iv~ : BytesView, compress? : Bool, policy? : Policy) -> String raise Refused
 
 pub fn unwrap(BytesView, BytesView) -> Bytes raise Refused
 
@@ -33,10 +47,24 @@ pub(all) enum Alg {
   A128Kw
   A192Kw
   A256Kw
+  A128GcmKw
+  A192GcmKw
+  A256GcmKw
+  Rsa1_5
+  RsaOaep
   RsaOaep256
+  EcdhEs
+  EcdhEsA128Kw
+  EcdhEsA192Kw
+  EcdhEsA256Kw
+  Pbes2Hs256A128Kw
+  Pbes2Hs384A192Kw
+  Pbes2Hs512A256Kw
 }
 pub fn Alg::equal(Self, Self) -> Bool
+pub fn Alg::name(Self) -> String
 pub fn Alg::not_equal(Self, Self) -> Bool
+pub fn Alg::of(StringView) -> Self raise Refused
 pub fn Alg::to_repr(Self) -> @debug.Repr
 
 #derive(Eq, @debug.Debug)
@@ -49,18 +77,75 @@ pub(all) enum Enc {
   A256CbcHs512
 }
 pub fn Enc::equal(Self, Self) -> Bool
+pub fn Enc::name(Self) -> String
 pub fn Enc::not_equal(Self, Self) -> Bool
+pub fn Enc::of(StringView) -> Self raise Refused
 pub fn Enc::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Identity {
   Shared(Bytes)
   Rsa(@rsa.PrivateKey)
+  Password(Bytes)
+  Agreement(@curve.Curve, Bytes)
 }
+pub fn Identity::to_repr(Self) -> @debug.Repr
+pub impl @debug.Debug for Identity
 
 pub(all) enum Key {
   Shared(Bytes)
   Rsa(@rsa.PublicKey)
+  Password(Bytes)
+  Agreement(@curve.Curve, Bytes)
 }
+pub fn Key::to_repr(Self) -> @debug.Repr
+pub impl @debug.Debug for Key
+
+#derive(Eq, @debug.Debug)
+pub(all) enum Layout {
+  Recipient
+  Protected
+  Bare
+}
+pub fn Layout::equal(Self, Self) -> Bool
+pub fn Layout::not_equal(Self, Self) -> Bool
+pub fn Layout::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Opened {
+  plain : Bytes
+  aad : Bytes
+  header : Map[String, @json.Json]
+  index : Int32
+}
+
+#derive(Eq, @debug.Debug)
+pub(all) struct Policy {
+  legacy : Bool
+}
+pub fn Policy::equal(Self, Self) -> Bool
+pub fn Policy::new(legacy? : Bool) -> Self
+pub fn Policy::not_equal(Self, Self) -> Bool
+pub fn Policy::to_repr(Self) -> @debug.Repr
+
+#derive(@debug.Debug)
+pub(all) struct Recipient {
+  alg : Alg
+  key : Key
+  header : Map[String, @json.Json]
+  cek : Bytes?
+  salt : Bytes?
+  count : Int32?
+  iv : Bytes?
+  ephemeral : Bytes?
+  seed : Bytes?
+}
+pub fn Recipient::new(Alg, Key) -> Self
+pub fn Recipient::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Unseal {
+  alg : Alg
+  key : Identity
+}
+pub fn Unseal::new(Alg, Identity) -> Self
 
 // Type aliases
 
