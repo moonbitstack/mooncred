@@ -27,6 +27,29 @@ pub extend Material with Eq::{equal, not_equal}
 pub extend Material with Debug::{to_repr}
 
 ///|
+/// The extra numbers an RSA private key may carry (RFC 7518 §6.3.2): the two primes and the
+/// three Chinese-remainder values.
+///
+/// They are not needed to compute anything — `d` alone signs and decrypts — but they are what
+/// a key file contains, and a reader that silently drops them hands back a key that no longer
+/// writes out as the one that came in. A key must carry all five or none; a partial set is
+/// `Missing`, because the parts are only useful together.
+#derive(Eq, Debug)
+pub(all) struct Crt {
+  p : Bytes
+  q : Bytes
+  dp : Bytes
+  dq : Bytes
+  qi : Bytes
+}
+
+///|
+pub extend Crt with Eq::{equal, not_equal}
+
+///|
+pub extend Crt with Debug::{to_repr}
+
+///|
 /// Why a JWK could not be read.
 #derive(Eq, Debug)
 pub(all) suberror Refused {
@@ -54,6 +77,7 @@ struct Jwk {
   alg : String?
   usage : String?
   ops : Array[String]
+  crt : Crt?
 }
 
 ///|
@@ -64,14 +88,18 @@ pub fn Jwk::read(value : Json) -> Jwk raise Refused {
     _ => raise Shape("a JWK is a JSON object")
   }
   let kty = text(members, "kty")
+  let mut crt : Crt? = None
   let material = match kty {
     "oct" => Material::Oct(key=raw(members, "k"))
-    "RSA" =>
+    "RSA" => {
+      let secret = optional(members, "d")
+      crt = primes(members)
       Material::Rsa(
         modulus=raw(members, "n"),
         exponent=raw(members, "e"),
-        secret=optional(members, "d"),
+        secret~,
       )
+    }
     "EC" =>
       Material::Ec(
         curve=text(members, "crv"),
@@ -101,6 +129,7 @@ pub fn Jwk::read(value : Json) -> Jwk raise Refused {
     alg: maybe(members, "alg"),
     usage: maybe(members, "use"),
     ops,
+    crt,
   }
 }
 
@@ -141,6 +170,16 @@ pub fn Jwk::ops(self : Jwk) -> Array[String] {
 }
 
 ///|
+/// The primes and Chinese-remainder values an RSA private key carries, when it carries them.
+///
+/// What a caller does with them is the caller's business: they speed up signing and they are
+/// what a key written back out as PEM contains. A key without them is a complete key — `d` is
+/// enough — so this answers `None` for a public key and for a private key written compactly.
+pub fn Jwk::crt(self : Jwk) -> Crt? {
+  self.crt
+}
+
+///|
 /// Whether the key carries a private part.
 ///
 /// A key set published at a well-known URL must answer `false` for every key in
@@ -173,7 +212,19 @@ pub fn Jwk::json(self : Jwk, secret~ : Bool = false) -> Json {
       out["e"] = Json::string(wrap(exponent))
       if secret {
         match hidden {
-          Some(d) => out["d"] = Json::string(wrap(d))
+          Some(d) => {
+            out["d"] = Json::string(wrap(d))
+            match self.crt {
+              Some(parts) => {
+                out["p"] = Json::string(wrap(parts.p))
+                out["q"] = Json::string(wrap(parts.q))
+                out["dp"] = Json::string(wrap(parts.dp))
+                out["dq"] = Json::string(wrap(parts.dq))
+                out["qi"] = Json::string(wrap(parts.qi))
+              }
+              None => ()
+            }
+          }
           None => ()
         }
       }
@@ -371,6 +422,37 @@ fn optional(
   } else {
     None
   }
+}
+
+///|
+/// The five numbers of an RSA private key, when the document carries them. A document that
+/// carries some of them and not the rest is refused rather than half-read: the values are only
+/// meaningful as a set, and writing back three of five would produce a key that looks complete.
+fn primes(members : Map[String, Json]) -> Crt? raise Refused {
+  let names = ["p", "q", "dp", "dq", "qi"]
+  let mut seen = 0
+  for name in names {
+    if members.get(name) is Some(_) {
+      seen += 1
+    }
+  }
+  if seen == 0 {
+    return None
+  }
+  if seen != names.length() {
+    for name in names {
+      if members.get(name) is None {
+        raise Missing(field=name)
+      }
+    }
+  }
+  Some({
+    p: raw(members, "p"),
+    q: raw(members, "q"),
+    dp: raw(members, "dp"),
+    dq: raw(members, "dq"),
+    qi: raw(members, "qi"),
+  })
 }
 
 ///|

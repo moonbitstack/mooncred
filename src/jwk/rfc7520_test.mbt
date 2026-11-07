@@ -39,7 +39,7 @@ test "RFC 7520 §3.3: the RSA public key reads and writes back" {
 ///|
 test "RFC 7520 §3.4: the RSA private key keeps its modulus, exponent and private exponent" {
   // RFC 7518 §6.3.2 lets a private key carry the primes and the Chinese-remainder values as
-  // well; `Material::Rsa` models n, e and d, which is what a key is, and leaves the rest out.
+  // well; they are kept beside the material, and `crt_test.mbt` checks that they come back out.
   let key = @jwk.Jwk::parse(rfc7520_3_4)
   assert_true(key.is_private())
   let published = @json.loads(rfc7520_3_4)
