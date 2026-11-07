@@ -464,14 +464,12 @@ let message = @jwe.seal(
   aad=b"tenant=42",
 )
 println(@json.dumps(message))
-let opened = @jwe.open(
-  @json.dumps(message)[:],
-  enc=A128Gcm,
-  unseal=[
-    @jwe.Unseal::new(A128Kw, Shared(b"sixteen byte key")),
-  ],
-)
-println("opened by recipient \{opened.index}, aad \{@utf8.decode(opened.aad)}")<!-- /code:jwerecipients --></code></pre>
+let opened = @jwe.open(@json.dumps(message)[:], enc=A128Gcm, unseal=[
+  @jwe.Unseal::new(A128Kw, Shared(b"sixteen byte key")),
+])
+println(
+  "opened by recipient \{opened.index}, aad \{@utf8.decode(opened.aad)}",
+)<!-- /code:jwerecipients --></code></pre>
     <pre class="out"><!-- run:jwerecipients -->{"protected":"eyJlbmMiOiJBMTI4R0NNIn0","recipients":[{"header":{"alg":"A128KW","kid":"ops"},"encrypted_key":"FM5tULvWg_gbWfRHZyl-N_n89AE8tRf8"},{"header":{"alg":"PBES2-HS256+A128KW","kid":"audit","p2s":"c2l4dGVlbiBieXRlIHNhbA","p2c":4096},"encrypted_key":"G-WqPS_nQyLcf7zhznTfmyRu8H4yaWs8"}],"aad":"dGVuYW50PTQy","iv":"dHdlbHZlIGJ5dGVz","ciphertext":"NjujYqAb3DUJULt64fdveQ","tag":"60szW1olBDtE4tRcphFkNg"}
 opened by recipient 0, aad tenant=42<!-- /run:jwerecipients --></pre>
     <h3>A CBOR Web Token.</h3>

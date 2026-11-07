@@ -450,13 +450,11 @@ fn several_recipients() -> Unit raise {
     aad=b"tenant=42",
   )
   println(@json.dumps(message))
-  let opened = @jwe.open(
-    @json.dumps(message)[:],
-    enc=A128Gcm,
-    unseal=[
-      @jwe.Unseal::new(A128Kw, Shared(b"sixteen byte key")),
-    ],
+  let opened = @jwe.open(@json.dumps(message)[:], enc=A128Gcm, unseal=[
+    @jwe.Unseal::new(A128Kw, Shared(b"sixteen byte key")),
+  ])
+  println(
+    "opened by recipient \{opened.index}, aad \{@utf8.decode(opened.aad)}",
   )
-  println("opened by recipient \{opened.index}, aad \{@utf8.decode(opened.aad)}")
   // @@end
 }
