@@ -257,6 +257,13 @@ pub(all) suberror Refused {
   Type(want~ : String, got~ : String)
   /// A claim the caller required is absent.
   Missing(claim~ : String)
+  /// The token and the caller disagree about whether the payload is base64url
+  /// (RFC 7797). Refused rather than reconciled: the two readings cover
+  /// different octets, and a signature only ever covers one of them.
+  Encoding(want~ : Bool, got~ : Bool)
+  /// A header lists a critical parameter this reader does not implement. RFC 7515
+  /// §4.1.11 makes accepting one a defect, not a convenience.
+  Critical(name~ : String)
 }
 
 ///|

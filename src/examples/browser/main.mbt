@@ -346,6 +346,10 @@ fn line_of(e : @jwt.Refused) -> String {
     IssuedAt(at~) => "issued at \{at.to_int()}, too late to be trusted"
     Type(want~, got~) => "typed \{got}, not \{want}"
     Missing(claim~) => "the claim " + claim + " is missing"
+    Encoding(want~, got~) =>
+      "the payload is \{if want { "encoded" } else { "raw" }}, not \{if got { "encoded" } else { "raw" }}"
+    Critical(name~) =>
+      "the header names a critical parameter \{name} this reader does not know"
   }
 }
 
