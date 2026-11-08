@@ -138,6 +138,23 @@ test "verify: a CA is not a leaf" {
 }
 
 ///|
+test "verify: a CA that is its own anchor, when the policy allows it" {
+  // The certificate a deployment makes once and hands to both ends: OpenSSL and Go both accept it
+  // as the leaf, because it is also the anchor. RFC 5280 does not, and neither does the default.
+  let r = roots([rsa_root])
+  assert_eq(refused(ders([rsa_root]), r), Authority(at=0))
+  let lax = @x509.Policy::new(anchor_leaf=true)
+  let path = @x509.verify(ders([rsa_root])[:], r, now~, policy=lax)
+  assert_eq(names(path), ["rsa root", "rsa root"])
+  // A CA leaf that is not the anchor is still not an end-entity certificate, whichever policy is
+  // asked: the switch is about one certificate standing in both places, not about CA leaves.
+  assert_eq(refused(ders([rsa_inter]), r, policy=lax), Authority(at=0))
+  // And a leaf issued by that anchor is unaffected: it is not the anchor itself.
+  let path = @x509.verify(ders([leaf, rsa_inter])[:], r, now~, policy=lax)
+  assert_eq(names(path), ["leaf", "rsa inter", "rsa root"])
+}
+
+///|
 test "verify: the leaf must allow the purpose asked for" {
   let chain = ders([client, rsa_inter])
   let r = roots([rsa_root])
@@ -249,6 +266,7 @@ test "policy: the three ways of writing one agree" {
     budget: 100,
     comparisons: 250_000,
     bits: 2048,
+    anchor_leaf: false,
   })
 }
 

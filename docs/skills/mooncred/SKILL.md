@@ -195,7 +195,10 @@ returning a half-read container. A `PrivateKey` has no `Show`: it does not print
 - An anchor in `x509.Roots` is a name and a key. Its own expiry and extensions are not
   examined, which is what lets a long-lived root carry an old signature.
 - A leaf that is itself a CA is refused, as is a chain whose issuer lacks
-  `basicConstraints` or `keyCertSign`.
+  `basicConstraints` or `keyCertSign`. A deployment whose one certificate is both the server's
+  and the trust anchor — what `openssl req -x509` makes, and what OpenSSL and Go both accept —
+  turns that first refusal off with `@x509.Policy::new(anchor_leaf=true)`; it is off by
+  default, and it says nothing about a CA leaf that is not itself the anchor.
 - `jwk` keeps an RSA private key's `p`, `q`, `dp`, `dq` and `qi` when the document carries
   them, and answers `crt()` with `None` when it does not.
 - Everything that can fail raises. Nothing returns a partially filled value.

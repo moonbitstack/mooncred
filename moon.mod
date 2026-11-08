@@ -1,6 +1,6 @@
 name = "moonbitstack/mooncred"
 
-version = "0.6.10"
+version = "0.6.11"
 
 readme = "README.md"
 

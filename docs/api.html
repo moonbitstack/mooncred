@@ -38,7 +38,7 @@
   <article class="sheet" id="contents">
     <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>the reference</span><span class="folio">i</span></header>
     <h1>The reference, <em>by package.</em></h1>
-    <p>Every public type, function and value of mooncred 0.6.10, read from each package's interface and the comments above its definitions. The <a href="guide.html">guide</a> shows them at work.</p>
+    <p>Every public type, function and value of mooncred 0.6.11, read from each package's interface and the comments above its definitions. The <a href="guide.html">guide</a> shows them at work.</p>
     <nav class="pkgs" aria-label="Packages">
       <a href="#jwt"><span class="pkg">jwt</span><span class="what">JSON Web Signature</span><span class="count">35</span></a>
       <a href="#jwk"><span class="pkg">jwk</span><span class="what">JSON Web Key</span><span class="count">20</span></a>
@@ -856,8 +856,10 @@
   budget : Int32
   comparisons : Int32
   bits : Int32
+  anchor_leaf : Bool
 }</code></pre>
 <p>What a validation asks for and how far it may go. <code>depth</code> bounds the intermediates on the path, <code>budget</code> the signature checks spent finding it, <code>comparisons</code> the name-constraint comparisons, and <code>bits</code> the smallest RSA modulus a signature is accepted under.</p>
+<p><code>anchor_leaf</code> is the one rule here that is not RFC 5280's. It accepts a leaf that is itself one of the anchors, even when it says it is a CA: OpenSSL and Go both do, and a deployment that has one self-signed certificate and puts it in both places is common enough that a switch for it is worth having. Off by default, because RFC 5280 and webpki both say a CA certificate is not an end-entity certificate, and a certificate that is both is a configuration mistake far more often than a design.</p>
 </div>
 <div class="item" id="x509-PrivateKey">
 <div class="name"><span class="kind">type</span>PrivateKey</div>
@@ -1002,7 +1004,7 @@
 <pre class="sig"><code>pub fn verify(ArrayView[Bytes], Roots, now~ : Int64, host? : String, policy? : Policy) -&gt; Array[Cert] raise Refused</code></pre>
 <p>Validate a chain and return the path found: the leaf, the intermediates it runs through, and the anchor it ends on.</p>
 <p><code>chain</code> is the leaf followed by the intermediates the peer sent, in any order; ones the path does not need are ignored, which is what a TLS server's habit of sending a cross-signed extra asks for. <code>now</code> is the time to judge validity at, in seconds since the Unix epoch. <code>host</code>, when given, is a DNS name or an IP literal the leaf must name; without it names are not compared.</p>
-<p>The rules, and whose they are: - Names come from subjectAltName only, never the commonName (RFC 6125, Go since 1.15, webpki). - Every issuer must be a CA, have keyCertSign when it lists key usages, and respect its pathLenConstraint. A leaf that is a CA is refused, as webpki does. - Validity is checked on every certificate but the anchor. - The leaf must allow <code>policy.usage</code>; an issuer that lists key purposes must allow it too (Go and the Mozilla root programme chain the restriction). - An unknown critical extension anywhere on the path refuses it. - Name constraints bind dNSName, iPAddress, rfc822Name, directoryName and the host of a URI; a constraint of another form, over a name of that form, refuses rather than guesses. - Several candidate issuers with the issuer's name are each tried, preferring the one whose subjectKeyIdentifier matches the authorityKeyIdentifier; every signature check spends from <code>policy.budget</code>.</p>
+<p>The rules, and whose they are: - Names come from subjectAltName only, never the commonName (RFC 6125, Go since 1.15, webpki). - Every issuer must be a CA, have keyCertSign when it lists key usages, and respect its pathLenConstraint. A leaf that is a CA is refused, as webpki does, unless it is one of the anchors and the policy's <code>anchor_leaf</code> says so. - Validity is checked on every certificate but the anchor. - The leaf must allow <code>policy.usage</code>; an issuer that lists key purposes must allow it too (Go and the Mozilla root programme chain the restriction). - An unknown critical extension anywhere on the path refuses it. - Name constraints bind dNSName, iPAddress, rfc822Name, directoryName and the host of a URI; a constraint of another form, over a name of that form, refuses rather than guesses. - Several candidate issuers with the issuer's name are each tried, preferring the one whose subjectKeyIdentifier matches the authorityKeyIdentifier; every signature check spends from <code>policy.budget</code>.</p>
 <p>When no path works, the refusal is the first reason a candidate path failed, or <code>Issuer</code> when there was no candidate at all.</p>
 </div>
 <div class="item" id="x509-Cert-matches">
@@ -1042,7 +1044,7 @@
 </div>
 <div class="item" id="x509-Policy-new">
 <div class="name"><span class="kind">fn</span><span class="dim">Policy::</span>new</div>
-<pre class="sig"><code>pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32, comparisons? : Int32, bits? : Int32) -&gt; Self</code></pre>
+<pre class="sig"><code>pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32, comparisons? : Int32, bits? : Int32, anchor_leaf? : Bool) -&gt; Self</code></pre>
 <p>A policy with any field changed from the preset.</p>
 </div>
 <div class="item" id="x509-PrivateKey-encrypt">

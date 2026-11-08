@@ -20,7 +20,8 @@ pub(all) suberror Refused {
   /// No issuer for the certificate the search ended on, among the intermediates or the anchors.
   Issuer
   /// A certificate acting outside its authority: an issuer that is not a CA, or has no
-  /// keyCertSign, or sits deeper than its pathLenConstraint allows; or a leaf that is a CA.
+  /// keyCertSign, or sits deeper than its pathLenConstraint allows; or a leaf that is a CA and
+  /// not, under `policy.anchor_leaf`, its own anchor.
   Authority(at~ : Int32)
   /// Its issuer's signature does not verify.
   Signature(at~ : Int32)
@@ -75,6 +76,13 @@ fn Usage::oid(self : Usage) -> String? {
 /// What a validation asks for and how far it may go. `depth` bounds the intermediates on the
 /// path, `budget` the signature checks spent finding it, `comparisons` the name-constraint
 /// comparisons, and `bits` the smallest RSA modulus a signature is accepted under.
+///
+/// `anchor_leaf` is the one rule here that is not RFC 5280's. It accepts a leaf that is itself
+/// one of the anchors, even when it says it is a CA: OpenSSL and Go both do, and a deployment
+/// that has one self-signed certificate and puts it in both places is common enough that a switch
+/// for it is worth having. Off by default, because RFC 5280 and webpki both say a CA certificate
+/// is not an end-entity certificate, and a certificate that is both is a configuration mistake
+/// far more often than a design.
 #derive(Eq, Debug)
 pub(all) struct Policy {
   usage : Usage
@@ -82,6 +90,7 @@ pub(all) struct Policy {
   budget : Int32
   comparisons : Int32
   bits : Int32
+  anchor_leaf : Bool
 }
 
 ///|
@@ -94,6 +103,7 @@ pub let policy : Policy = {
   budget: 100,
   comparisons: 250_000,
   bits: 2048,
+  anchor_leaf: false,
 }
 
 ///|
@@ -104,8 +114,9 @@ pub fn Policy::new(
   budget~ : Int32 = policy.budget,
   comparisons~ : Int32 = policy.comparisons,
   bits~ : Int32 = policy.bits,
+  anchor_leaf~ : Bool = policy.anchor_leaf,
 ) -> Policy {
-  { usage, depth, budget, comparisons, bits, }
+  { usage, depth, budget, comparisons, bits, anchor_leaf, }
 }
 
 ///|
@@ -184,7 +195,8 @@ fn Roots::named(self : Roots, name : Bytes) -> Array[Cert] {
 /// The rules, and whose they are:
 /// - Names come from subjectAltName only, never the commonName (RFC 6125, Go since 1.15, webpki).
 /// - Every issuer must be a CA, have keyCertSign when it lists key usages, and respect its
-///   pathLenConstraint. A leaf that is a CA is refused, as webpki does.
+///   pathLenConstraint. A leaf that is a CA is refused, as webpki does, unless it is one of the
+///   anchors and the policy's `anchor_leaf` says so.
 /// - Validity is checked on every certificate but the anchor.
 /// - The leaf must allow `policy.usage`; an issuer that lists key purposes must allow it too
 ///   (Go and the Mozilla root programme chain the restriction).
@@ -217,7 +229,7 @@ pub fn verify(
   }
   let leaf = certs[0]
   check_common(leaf, 0, now)
-  if leaf.exts.ca {
+  if leaf.exts.ca && !(policy.anchor_leaf && roots.anchored(leaf)) {
     raise Authority(at=0)
   }
   if !key_usage_fits(leaf.spki, leaf.exts.key_usage) {
@@ -405,6 +417,14 @@ fn Search::intermediates(self : Search) -> Int32 {
     }
   }
   count
+}
+
+///|
+/// Whether `cert` is one of the anchors, octet for octet: the certificate a deployment handed to
+/// both ends of the connection rather than signing one with the other. Only `policy.anchor_leaf`
+/// asks, and only about the leaf.
+fn Roots::anchored(self : Roots, cert : Cert) -> Bool {
+  self.named(cert.subject.raw).iter().any(a => a.raw == cert.raw)
 }
 
 ///|
