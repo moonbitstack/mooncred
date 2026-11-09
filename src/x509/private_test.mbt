@@ -74,3 +74,17 @@ test "private key: encrypted keys and keys that do not sign are unsupported" {
   }
   assert_true(refused_key(p256_spki) is Malformed(_))
 }
+
+///|
+test "private key: RSA primes that do not fit the private exponent are refused" {
+  let ints = @asn1.only(@x509.pem(rsa_pkcs1)[:]).items().map(item => item.int())
+  ints[3] = ints[3] + 2N
+  let der = @asn1.sequence(ints.map(n => @asn1.integer(n.to_octets())))
+  let why = try @x509.PrivateKey::read(der[:]) catch {
+    Malformed(why) => why
+    e => "\{e}"
+  } noraise {
+    _ => "read"
+  }
+  inspect(why, content="RSAPrivateKey's primes do not fit its private exponent")
+}

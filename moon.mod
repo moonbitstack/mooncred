@@ -48,7 +48,7 @@ description = "Credentials for MoonBit: JWT, JWK and X.509."
 
 import {
   "moonbitstack/moonbase@0.4.4",
-  "moonbitstack/mooncrypt@0.4.13",
+  "moonbitstack/mooncrypt@0.4.14",
   "moonbitstack/moondate@0.1.6",
   "moonbitstack/moonjson@0.4.4",
   "moonbitstack/moonzip@0.3.8",

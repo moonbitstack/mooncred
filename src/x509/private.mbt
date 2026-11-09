@@ -325,11 +325,19 @@ fn pkcs1(items : Array[@asn1.Tlv]) -> PrivateKey raise @asn1.Refused {
   if p * q != n {
     raise @asn1.Malformed("RSA primes do not multiply to the modulus")
   }
-  let key = @rsa.PrivateKey::new(
+  // The primes go in with the key: signing through the two CRT halves is about
+  // four times less work than through the modulus.
+  let key = @rsa.PrivateKey::new_crt(
     n.to_octets()[:],
     items[2].int().to_octets()[:],
     items[3].int().to_octets()[:],
+    p.to_octets()[:],
+    q.to_octets()[:],
   ) catch {
+    @spec.Weak =>
+      raise @asn1.Malformed(
+        "RSAPrivateKey's primes do not fit its private exponent",
+      )
     _ => raise @asn1.Malformed("RSAPrivateKey carries an unusable modulus")
   }
   Rsa(key)
