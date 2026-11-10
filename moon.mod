@@ -51,6 +51,7 @@ import {
   "moonbitstack/mooncrypt@0.4.14",
   "moonbitstack/moondate@0.1.6",
   "moonbitstack/moonjson@0.4.4",
+  "moonbitstack/moonknob@0.1.0",
   "moonbitstack/moonzip@0.3.8",
 }
 

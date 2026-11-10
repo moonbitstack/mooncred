@@ -651,6 +651,7 @@ test "clash hands the arbitration over" {
   let token = stale(hs)
   let checking = @jwt.Policy::new(expiry=true)
   let seen : Array[@jwt.Policy] = []
+  let names : Array[Array[String]] = []
   try
     @jwt.verify(
       token[:],
@@ -659,10 +660,11 @@ test "clash hands the arbitration over" {
       now=At(9999L),
       policy=checking,
       expiry=false,
-      clash=Handle(fn(base, merged) {
-        seen.push(base)
-        seen.push(merged)
-        base
+      clash=Handle(clash => {
+        names.push(clash.names)
+        seen.push(clash.base)
+        seen.push(clash.merged)
+        clash.base
       }),
     )
     |> ignore
@@ -672,9 +674,33 @@ test "clash hands the arbitration over" {
     _ => fail("the callback returned the base, which still checks expiry")
   }
   // It saw both, and they differ in exactly the field that was overridden.
+  assert_eq(names, [["expiry"]])
   assert_eq(seen.length(), 2)
   assert_true(seen[0].expiry)
   assert_false(seen[1].expiry)
+}
+
+///|
+/// `clash=Warn` keeps what `wins` chose and says which settings were given
+/// twice; a setting given twice with the same value is not among them.
+test "clash warns and keeps the merged policy" {
+  let hs = @jwt.mac(fn() { @hmac.Hmac::new(raw(secret)[:], sha(256)) })
+  let token = stale(hs)
+  let said : Array[String] = []
+  let got = @jwt.verify(
+    token[:],
+    HS256,
+    hs,
+    now=At(9999L),
+    policy=@jwt.Policy::new(expiry=true, leeway=5L),
+    expiry=false,
+    leeway=5L,
+    clash=Warn(line => said.push(line)),
+  )
+  assert_true(got.contains("sub"))
+  assert_eq(said, [
+    "jwt.verify: the policy and the arguments: expiry given twice with different values",
+  ])
 }
 
 ///|

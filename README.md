@@ -103,9 +103,13 @@ Both of those are parameters too:
 
 - `wins` turns the last two layers around. `Base` makes the policy
   authoritative and the arguments advisory.
-- `clash` decides what happens when a setting is given twice: `Ignore` merges
-  quietly, `Panic` refuses, and `Handle(f)` gives your function the base and the
-  merged result and takes whichever it returns.
+- `clash` decides what happens when a setting is given twice with different
+  values: `Ignore` merges quietly, `Warn(f)` merges and passes one line to `f`,
+  `Panic` aborts, and `Handle(f)` gives your function the names, the base and
+  the merged result and takes what it returns.
+
+Both types are [moonknob](https://github.com/moonbitstack/moonknob)'s, so the
+same arguments work the same way in every library of the family.
 
 ```moonbit
 // A policy for the deployment, assembled once.

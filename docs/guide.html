@@ -141,7 +141,7 @@ read with no clock: 4 claims<!-- /run:refuse --></pre>
     <h2>Settings, in three layers.</h2>
     <p>Everything a verification checks is a setting, given in a <code>Policy</code> assembled once or as an argument to one call. The more specific layer wins:</p>
     <p class="layers"><span>@jwt.policy</span><i>&lt;</i><span>the policy passed</span><i>&lt;</i><span>the arguments passed</span></p>
-    <p><code>wins=Base</code> turns the last two around, so the record decides. <code>clash</code> says what happens when one setting arrives twice: <code>Ignore</code> merges quietly, <code>Panic</code> stops, <code>Handle(f)</code> hands both to your function. <code>now</code> is data, not a setting, so it is always an argument.</p>
+    <p><code>wins=Base</code> turns the last two around, so the record decides. <code>clash</code> says what happens when one setting arrives twice with different values: <code>Ignore</code> merges quietly, <code>Warn(f)</code> merges and passes one line to <code>f</code>, <code>Panic</code> stops, <code>Handle(f)</code> hands both to your function. Both types come from <code>moonknob</code>, shared by the whole family. <code>now</code> is data, not a setting, so it is always an argument.</p>
     <pre class="listing"><code><!-- code:policy --><span class="c">// Assembled once for a deployment.</span>
 let ours = @jwt.Policy::new(
   issuer="moonbitstack",

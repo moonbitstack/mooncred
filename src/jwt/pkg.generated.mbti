@@ -5,6 +5,7 @@ import {
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
   "moonbitstack/mooncrypt/spec",
+  "moonbitstack/moonknob",
 }
 
 // Values
@@ -18,11 +19,11 @@ pub fn message(StringView) -> Message raise Refused
 
 pub let policy : Policy
 
-pub fn sign(Map[String, @json.Json], Alg, &@spec.Signer, typ? : String?, extra? : Map[String, @json.Json], wins? : Wins, clash? : OnClash[Map[String, @json.Json]]) -> String
+pub fn sign(Map[String, @json.Json], Alg, &@spec.Signer, typ? : String?, extra? : Map[String, @json.Json], wins? : @moonknob.Wins, clash? : @moonknob.OnClash[Map[String, @json.Json]]) -> String
 
 pub fn sign_bytes(BytesView, Alg, &@spec.Signer, b64? : Bool, typ? : String, extra? : Map[String, @json.Json], detached? : Bool) -> String raise Refused
 
-pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : Wins, clash? : OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, @json.Json] raise Refused
+pub fn verify(StringView, Alg, &@spec.Verifier, now~ : Clock, policy? : Policy, wins? : @moonknob.Wins, clash? : @moonknob.OnClash[Policy], leeway? : Int64, expiry? : Bool, issuer? : String, audience? : Array[String]) -> Map[String, @json.Json] raise Refused
 
 pub fn verify_bytes(StringView, Alg, &@spec.Verifier, b64? : Bool, payload? : Bytes) -> Bytes raise Refused
 
@@ -107,12 +108,6 @@ pub fn Message::payload(Self) -> Bytes?
 pub fn Message::sign(Self, Alg, &@spec.Signer, signed? : Map[String, @json.Json], header? : Map[String, @json.Json], b64? : Bool, bare? : Bool) -> Self raise Refused
 pub fn Message::signatures(Self) -> Array[Signature]
 
-pub(all) enum OnClash[T] {
-  Ignore
-  Panic
-  Handle((T, T) -> T)
-}
-
 #derive(Eq, @debug.Debug)
 pub(all) struct Policy {
   leeway : Int64
@@ -141,15 +136,6 @@ pub(all) struct Verified {
   index : Int32
   header : Map[String, @json.Json]
 }
-
-#derive(Eq, @debug.Debug)
-pub(all) enum Wins {
-  Base
-  Extra
-}
-pub fn Wins::equal(Self, Self) -> Bool
-pub fn Wins::not_equal(Self, Self) -> Bool
-pub fn Wins::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

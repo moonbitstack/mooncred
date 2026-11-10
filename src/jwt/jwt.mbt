@@ -95,48 +95,6 @@ pub extend Clock with Eq::{equal, not_equal}
 pub extend Clock with Debug::{to_repr}
 
 ///|
-/// Which side wins when a setting is given twice.
-///
-/// Every function here that takes both a base and something layered over it
-/// says which one wins, and lets a caller say otherwise. The defaults differ by
-/// function and each one says why: `verify` lets the override win, because a
-/// per-call argument is more specific than a policy assembled once; `sign` lets
-/// the base win, because the header it computes describes the signature it is
-/// about to make.
-#derive(Eq, Debug)
-pub(all) enum Wins {
-  /// What the function starts from — the policy record, or the header the
-  /// signer computes.
-  Base
-  /// What is layered over it — the per-call arguments, or the caller's `extra`.
-  Extra
-}
-
-///|
-pub extend Wins with Eq::{equal, not_equal}
-
-///|
-pub extend Wins with Debug::{to_repr}
-
-///|
-/// What to do when a setting is given twice.
-///
-/// `Handle` receives the base and the merged result and returns whichever it
-/// wants, so a caller can audit, refuse, or merge some other way entirely.
-///
-/// There is no `Warn`: a library has nowhere to warn to. It arrives when
-/// `moonlog` does.
-pub(all) enum OnClash[T] {
-  /// Merge as `wins` says and say nothing. What every library does today.
-  Ignore
-  /// Abort. For the cases where being given two answers is a mistake in the
-  /// program rather than a choice about configuration.
-  Panic
-  /// Hand the base and the merged result to a function and take what it returns.
-  Handle((T, T) -> T)
-}
-
-///|
 /// What a token has to satisfy beyond its signature.
 ///
 /// Every field is a check that is either off or told what to expect, and every
@@ -297,8 +255,8 @@ pub fn sign(
   key : &@spec.Signer,
   typ~ : String? = Some("JWT"),
   extra~ : Map[String, Json] = Map([]),
-  wins~ : Wins = Base,
-  clash~ : OnClash[Map[String, Json]] = Panic,
+  wins~ : @moonknob.Wins = Base,
+  clash~ : @moonknob.OnClash[Map[String, Json]] = Panic,
 ) -> String {
   let head : Map[String, Json] = Map([])
   head["alg"] = Json::string(alg.name())
@@ -306,42 +264,13 @@ pub fn sign(
     Some(kind) => head["typ"] = Json::string(kind)
     None => ()
   }
-  let over : Map[String, Json] = Map([])
-  for name, value in head {
-    over[name] = value
-  }
-  let taken : Array[String] = []
-  for name, value in extra {
-    if head.get(name) is Some(_) {
-      taken.push(name)
-    }
-    over[name] = value
-  }
-  let merged = if taken.length() == 0 {
-    over
-  } else {
-    let chosen = match wins {
-      Extra => over
-      Base => {
-        let kept : Map[String, Json] = Map([])
-        for name, value in over {
-          kept[name] = value
-        }
-        for name, value in head {
-          kept[name] = value
-        }
-        kept
-      }
-    }
-    match clash {
-      Ignore => chosen
-      Panic =>
-        abort(
-          "jwt: \{taken.join(", ")} in `extra` would rewrite the header this signature is made under",
-        )
-      Handle(arbitrate) => arbitrate(head, chosen)
-    }
-  }
+  let merge = @moonknob.Merge::new(wins)
+  let merged = merge.settle(
+    clash,
+    head,
+    merge.union(head, extra),
+    "jwt.sign: the header and `extra`",
+  )
   let input = segment(merged) + "." + segment(claims)
   input + "." + wrap(key.sign(@utf8.encode(input[:])[:]))
 }
@@ -359,8 +288,9 @@ pub fn sign(
 ///
 /// Configuration has three layers, each overriding the one before:
 /// `@jwt.policy` < the `policy` given here < the named arguments given here.
-/// `wins` turns the last two around; `clash` decides whether being given a
-/// setting twice is silent, fatal, or yours to arbitrate.
+/// `wins` turns the last two around; `clash` decides whether a setting given
+/// twice with different values is silent, reported, fatal, or yours to
+/// arbitrate. Both are `moonknob`'s, shared by every library in the family.
 ///
 /// `now` is not configuration but data: the instant the time claims are
 /// measured against, or `Ignored` to read a token without asking whether it has
@@ -372,8 +302,8 @@ pub fn verify(
   key : &@spec.Verifier,
   now~ : Clock,
   policy~ : Policy = policy,
-  wins~ : Wins = Extra,
-  clash~ : OnClash[Policy] = Ignore,
+  wins~ : @moonknob.Wins = Extra,
+  clash~ : @moonknob.OnClash[Policy] = Ignore,
   leeway? : Int64,
   expiry? : Bool,
   issuer? : String,
@@ -462,58 +392,22 @@ pub fn verify(
 /// Lay the per-call arguments over the policy, the way `wins` and `clash` say.
 fn settle(
   base : Policy,
-  wins : Wins,
-  clash : OnClash[Policy],
+  wins : @moonknob.Wins,
+  clash : @moonknob.OnClash[Policy],
   leeway : Int64?,
   expiry : Bool?,
   issuer : String?,
   audience : Array[String]?,
 ) -> Policy {
-  let named : Array[String] = []
-  let mut over = base
-  match leeway {
-    Some(value) => {
-      named.push("leeway")
-      over = { ..over, leeway: value, }
-    }
-    None => ()
+  let merge = @moonknob.Merge::new(wins)
+  let merged = {
+    ..base,
+    leeway: merge.pick("leeway", base.leeway, leeway),
+    expiry: merge.pick("expiry", base.expiry, expiry),
+    issuer: merge.pick("issuer", base.issuer, issuer.map(value => Some(value))),
+    audience: merge.pick("audience", base.audience, audience),
   }
-  match expiry {
-    Some(value) => {
-      named.push("expiry")
-      over = { ..over, expiry: value, }
-    }
-    None => ()
-  }
-  match issuer {
-    Some(value) => {
-      named.push("issuer")
-      over = { ..over, issuer: Some(value), }
-    }
-    None => ()
-  }
-  match audience {
-    Some(value) => {
-      named.push("audience")
-      over = { ..over, audience: value, }
-    }
-    None => ()
-  }
-  if named.length() == 0 {
-    return base
-  }
-  let merged = match wins {
-    Extra => over
-    Base => base
-  }
-  match clash {
-    Ignore => merged
-    Panic =>
-      abort(
-        "jwt: \{named.join(", ")} given both in the policy and as an argument",
-      )
-    Handle(arbitrate) => arbitrate(base, merged)
-  }
+  merge.settle(clash, base, merged, "jwt.verify: the policy and the arguments")
 }
 
 ///|
