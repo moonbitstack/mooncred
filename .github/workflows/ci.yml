@@ -100,3 +100,42 @@ jobs:
 
       - name: x509-limbo
         run: python3 scripts/limbo.py
+
+  # The other implementations are here, not only in the committed vectors: openssl writes every
+  # reader's fixtures again with keys made this minute, and go-jose opens the tokens this library
+  # seals and seals tokens this library then opens. A reader that only agrees with a file it was
+  # built against fails here.
+  interop:
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: install-unix
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> $GITHUB_PATH
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: scripts/jose_vectors/go.mod
+          cache-dependency-path: scripts/jose_vectors/go.sum
+
+      - name: post install
+        run: |
+          moon version --all
+          openssl version
+          go version
+          moon update
+
+      - name: openssl writes the fixtures again
+        run: python3 scripts/gen_credentials.py
+
+      - name: this library and go-jose read each other's messages
+        run: python3 scripts/gen_jose_vectors.py
+
+      - name: the readers accept what openssl and go-jose just wrote
+        run: moon test --target native

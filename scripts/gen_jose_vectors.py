@@ -29,7 +29,7 @@ JOSE = ROOT / "scripts" / "jose_vectors"
 def run(command: list[str], cwd: Path) -> str:
     result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, encoding="utf-8")
     if result.returncode != 0:
-        sys.exit(f"{' '.join(command)} failed:/n{result.stderr or result.stdout}")
+        sys.exit(f"{' '.join(command)} failed:\n{result.stderr or result.stdout}")
     return result.stdout
 
 
