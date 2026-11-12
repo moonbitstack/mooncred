@@ -330,8 +330,14 @@ def tests() -> int:
 
 def index(values: dict[str, str]) -> str:
     page = (DOCS / "index.html").read_text(encoding="utf-8")
+    # `data-fill` may follow other attributes, so the whole attribute list is matched and kept;
+    # a page that still shows 0.6.4 in its running head is what a narrower pattern leaves behind.
     for key, value in values.items():
-        page = re.sub(rf'(<[a-z]+ data-fill="{key}">)[^<]*(</[a-z]+>)', rf"\g<1>{value}\g<2>", page)
+        page = re.sub(
+            rf'(<([a-z]+)\b[^>]*\bdata-fill="{key}"[^>]*>)[^<]*(</\2>)',
+            rf"\g<1>{value}\g<3>",
+            page,
+        )
     return page
 
 
