@@ -50,6 +50,18 @@ test "crl: a serial is withdrawn or it is not" {
 }
 
 ///|
+/// The serial is the issuer's own numbering, so the same number under another issuer is another
+/// certificate. A list that answered for it would be answering about somebody else's certificate.
+test "crl: a list does not speak for another issuer's serial" {
+  let crl = Crl::pem(crl)
+  let elsewhere = @x509.name(@x509.common_name("Another CA")) catch {
+    _ => panic()
+  }
+  let foreign : @x509.Cert = { ..cert(revoked), issuer: elsewhere, }
+  assert_eq(crl.status(foreign), Unknown)
+}
+
+///|
 /// A list that expired years ago is still a list — the entries parse — but it is not current, and
 /// `fresh` is how a caller finds out before it believes a `Good`.
 test "crl: an expired list is read but not fresh" {
@@ -112,6 +124,30 @@ test "ocsp: a revoked certificate reads with its reason" {
 test "ocsp: an answer is only an answer for the issuer it names" {
   let ocsp = Ocsp::parse(bytes(ocsp_good)[:])
   assert_eq(ocsp.status(cert(good), cert(good)) catch { _ => panic() }, Unknown)
+}
+
+///|
+/// The two halves of a CertID are checked apart: with the issuer's name right and its key hash
+/// taken from another CA, the serial and the name still match and the answer is still not about
+/// this certificate.
+test "ocsp: a CertID whose key hash names another CA is not an answer" {
+  let ocsp = Ocsp::parse(bytes(ocsp_good)[:])
+  let basic = ocsp.basic.unwrap()
+  let entry = basic.responses[0]
+  let elsewhere = bytes("00112233445566778899aabbccddeeff00112233")
+  let tampered : Ocsp = {
+    ..ocsp,
+    basic: Some({
+      ..basic,
+      responses: [{ ..entry, issuer_key_hash: elsewhere, }],
+    }),
+  }
+  assert_eq(
+    tampered.status(cert(good), cert(authority)) catch {
+      _ => panic()
+    },
+    Unknown,
+  )
 }
 
 ///|

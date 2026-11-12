@@ -187,6 +187,32 @@ test "cbor: nesting is bounded" {
 }
 
 ///|
+/// The bound is the number the decoder names, not one somewhere past it: a document at the limit
+/// reads, and one array more does not. A test at eighty would pass under a bound of any size
+/// below it, which is what this one is for.
+test "cbor: the nesting bound is the depth it names" {
+  let nested = fn(depth : Int32) -> Bytes {
+    let octets = Buffer()
+    for _ in 0..<depth {
+      octets.write_byte(0x81)
+    }
+    octets.write_byte(0x00)
+    octets.to_bytes()
+  }
+  let refuses = fn(depth : Int32) -> Bool {
+    try {
+      decode(nested(depth)[:]) |> ignore
+      false
+    } catch {
+      Malformed(_) => true
+      _ => false
+    }
+  }
+  assert_false(refuses(deepest))
+  assert_true(refuses(deepest + 1))
+}
+
+///|
 /// Reading a value out of a map by its key, which is how a COSE header is read: the first pair with
 /// the key wins, and a value that is not a map holds nothing.
 test "cbor: a map can be read by key" {
