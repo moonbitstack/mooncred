@@ -188,7 +188,7 @@ pub fn signature_ok(
   match (scheme, key.key()) {
     (Pkcs1(d), Rsa(k)) => rsa_with(k, d, Pkcs1).verify(tbs, bytes)
     (Pss(d), Rsa(k)) =>
-      rsa_with(k, d, Pss(salt=digest_size(d))).verify(tbs, bytes)
+      rsa_with(k, d, Pss(salt=Exact(digest_size(d)))).verify(tbs, bytes)
     (Ecdsa(kind), Ec(k)) => {
       let curve = k.curve()
       guard ecdsa_raw(bytes, curve.size()) is Some(raw) else { return false }

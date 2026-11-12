@@ -103,9 +103,9 @@ fn signer_of(key : Json, alg : @jwt.Alg) -> &@spec.Signer raise {
         RS256 => (@rsa.Sha256, @rsa.Pkcs1)
         RS384 => (@rsa.Sha384, @rsa.Pkcs1)
         RS512 => (@rsa.Sha512, @rsa.Pkcs1)
-        PS256 => (@rsa.Sha256, @rsa.Pss(salt=32))
-        PS384 => (@rsa.Sha384, @rsa.Pss(salt=48))
-        PS512 => (@rsa.Sha512, @rsa.Pss(salt=64))
+        PS256 => (@rsa.Sha256, @rsa.Pss(salt=Exact(32)))
+        PS384 => (@rsa.Sha384, @rsa.Pss(salt=Exact(48)))
+        PS512 => (@rsa.Sha512, @rsa.Pss(salt=Exact(64)))
         _ => fail("an RSA key does not sign " + alg.name())
       }
       (
@@ -143,9 +143,9 @@ fn verifier_of(key : Json, alg : @jwt.Alg) -> &@spec.Verifier raise {
         RS256 => (@rsa.Sha256, @rsa.Pkcs1)
         RS384 => (@rsa.Sha384, @rsa.Pkcs1)
         RS512 => (@rsa.Sha512, @rsa.Pkcs1)
-        PS256 => (@rsa.Sha256, @rsa.Pss(salt=32))
-        PS384 => (@rsa.Sha384, @rsa.Pss(salt=48))
-        PS512 => (@rsa.Sha512, @rsa.Pss(salt=64))
+        PS256 => (@rsa.Sha256, @rsa.Pss(salt=Exact(32)))
+        PS384 => (@rsa.Sha384, @rsa.Pss(salt=Exact(48)))
+        PS512 => (@rsa.Sha512, @rsa.Pss(salt=Exact(64)))
         _ => fail("an RSA key verifies " + alg.name())
       }
       (

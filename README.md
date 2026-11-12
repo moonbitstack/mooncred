@@ -309,6 +309,7 @@ holds a chain to, and whose rule each is:
 | An unknown critical extension refuses the chain | RFC 5280 §4.2 |
 | Name constraints over dNSName, iPAddress, rfc822Name, directoryName and URI hosts | RFC 5280 §4.2.1.10 |
 | RSA PKCS#1 and PSS, ECDSA on four curves, Ed25519, ML-DSA at all three sets; no SHA-1 | webpki, Go, RFC 9881 |
+| An RSASSA-PSS signature is checked under the parameters it names — digest, mask and a salt as long as that digest — and refused as an unsupported algorithm when any of the three differs | RFC 4055 §3.1, Go |
 | An ML-DSA key asserts no keyEncipherment or keyAgreement, which a signing key cannot do | RFC 9881 §5 |
 | At most six intermediates and a hundred signature checks | webpki |
 
