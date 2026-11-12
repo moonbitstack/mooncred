@@ -62,9 +62,9 @@ fn read_suite() -> Json {
       @env.exit(2)
     }
   }
-  @json.parse(text) catch {
+  @moonjson.loads(text, @moonjson.strict) catch {
     e => {
-      println("limbo: the suite is not JSON: " + e.to_string())
+      println("limbo: the suite is not JSON: " + e.message())
       @env.exit(2)
     }
   }

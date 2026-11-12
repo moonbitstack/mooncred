@@ -11,7 +11,7 @@ options(
 import {
   "moonbitstack/mooncred/x509",
   "moonbitstack/moondate",
+  "moonbitstack/moonjson",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
-  "moonbitlang/core/json",
 }
