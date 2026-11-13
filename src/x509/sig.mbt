@@ -34,6 +34,10 @@ fn digest_size(d : @rsa.Digest) -> Int32 {
     Sha256 => 32
     Sha384 => 48
     Sha512 => 64
+    Sha512_224 | Sha3_224 => 28
+    Sha512_256 | Sha3_256 => 32
+    Sha3_384 => 48
+    Sha3_512 => 64
   }
 }
 
