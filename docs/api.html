@@ -38,7 +38,7 @@
   <article class="sheet" id="contents">
     <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>the reference</span><span class="folio">i</span></header>
     <h1>The reference, <em>by package.</em></h1>
-    <p>Every public type, function and value of mooncred 0.7.0, read from each package's interface and the comments above its definitions. The <a href="guide.html">guide</a> shows them at work.</p>
+    <p>Every public type, function and value of mooncred 0.7.1, read from each package's interface and the comments above its definitions. The <a href="guide.html">guide</a> shows them at work.</p>
     <nav class="pkgs" aria-label="Packages">
       <a href="#jwt"><span class="pkg">jwt</span><span class="what">JSON Web Signature</span><span class="count">33</span></a>
       <a href="#jwk"><span class="pkg">jwk</span><span class="what">JSON Web Key</span><span class="count">20</span></a>
@@ -863,7 +863,7 @@
   params : String?
   key : @asn1.Bits
 }</code></pre>
-<p>A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one (for an EC key, the named curve), and the key bits. Absent and NULL parameters both read as <code>None</code>, which is what every algorithm reachable from here means by either.</p>
+<p>A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one, and the key bits. For an EC key the parameter is the named curve; for an RSASSA-PSS key it is the digest its parameters hold it to, read in the one shape <code>pss_params</code> takes, and <code>None</code> when it is held to none. Absent and NULL parameters both read as <code>None</code>, which is what every algorithm reachable from here means by either.</p>
 </div>
 <div class="item" id="x509-Usage">
 <div class="name"><span class="kind">type</span>Usage</div>
@@ -1114,7 +1114,7 @@
 <div class="item" id="x509-Spki-key">
 <div class="name"><span class="kind">fn</span><span class="dim">Spki::</span>key</div>
 <pre class="sig"><code>pub fn Spki::key(Self) -&gt; Key raise @asn1.Refused</code></pre>
-<p>The public key a SubjectPublicKeyInfo carries: RSA, ECDSA on P-256, P-384, P-521 or secp256k1, Ed25519, or ML-DSA at any of its three parameter sets. Another algorithm raises <code>Unsupported</code>.</p>
+<p>The public key a SubjectPublicKeyInfo carries: RSA, under rsaEncryption or RSASSA-PSS; ECDSA on P-256, P-384, P-521, secp256k1 or the three brainpool curves of RFC 5639; Ed25519; or ML-DSA at any of its three parameter sets. Another algorithm raises <code>Unsupported</code>.</p>
 </div>
 <div class="item" id="x509-Spki-p256">
 <div class="name"><span class="kind">fn</span><span class="dim">Spki::</span>p256</div>
@@ -1131,7 +1131,7 @@
 <div class="name"><span class="kind">fn</span><span class="dim">Spki::</span>rsa</div>
 <pre class="sig"><code>pub fn Spki::rsa(Self, digest? : @rsa.Digest, scheme? : @rsa.Scheme) -&gt; @rsa.PublicKey raise @asn1.Refused</code></pre>
 <p>The RSA public key a SubjectPublicKeyInfo carries.</p>
-<p>The key bits are an <code>RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent INTEGER }</code> (RFC 8017 §A.1.1). Refuses any algorithm but rsaEncryption.</p>
+<p>The key bits are an <code>RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent INTEGER }</code> (RFC 8017 §A.1.1). Refuses any algorithm but rsaEncryption and RSASSA-PSS; an RSASSA-PSS key keeps the digest and scheme its parameters hold it to, whatever <code>digest</code> and <code>scheme</code> say.</p>
 <p><code>digest</code> and <code>scheme</code> are the signature parameters the key is built with. They do not enter encryption at all — <code>@rsa.PublicKey::encrypt</code> takes its own — so a caller that only encrypts can leave them alone.</p>
 </div>
     <footer class="foot"><span>moonbitstack/mooncred/x509</span><span class="dot"></span><span>61 entries</span><a class="next" href="#contents">contents</a></footer>
