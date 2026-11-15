@@ -8,6 +8,9 @@ let oid_ec_key : String = "1.2.840.10045.2.1"
 let oid_rsa : String = "1.2.840.113549.1.1.1"
 
 ///|
+let oid_rsa_pss : String = "1.2.840.113549.1.1.10"
+
+///|
 let oid_ed25519 : String = "1.3.101.112"
 
 ///|
@@ -21,6 +24,15 @@ let oid_p521 : String = "1.3.132.0.35"
 
 ///|
 let oid_secp256k1 : String = "1.3.132.0.10"
+
+///|
+let oid_brainpool_p256r1 : String = "1.3.36.3.3.2.8.1.1.7"
+
+///|
+let oid_brainpool_p384r1 : String = "1.3.36.3.3.2.8.1.1.11"
+
+///|
+let oid_brainpool_p512r1 : String = "1.3.36.3.3.2.8.1.1.13"
 
 ///|
 let oid_ml_dsa_44 : String = "2.16.840.1.101.3.4.3.17"
@@ -56,9 +68,11 @@ fn ml_dsa_arcs(kind : @mldsa.Kind) -> Array[Int32] {
 }
 
 ///|
-/// A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one (for
-/// an EC key, the named curve), and the key bits. Absent and NULL parameters both read as `None`,
-/// which is what every algorithm reachable from here means by either.
+/// A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one, and
+/// the key bits. For an EC key the parameter is the named curve; for an RSASSA-PSS key it is the
+/// digest its parameters hold it to, read in the one shape `pss_params` takes, and `None` when it
+/// is held to none. Absent and NULL parameters both read as `None`, which is what every algorithm
+/// reachable from here means by either.
 #derive(Eq, Debug)
 pub(all) struct Spki {
   alg : String
@@ -112,6 +126,7 @@ fn read_spki(tlv : @asn1.Tlv) -> Spki raise @asn1.Refused {
   }
   let (alg, params) = read_alg(items[0])
   let params = match params {
+    Some(p) if alg == oid_rsa_pss => Some(digest_oid(pss_params(Some(p))))
     Some(p) => {
       let t = @asn1.only(p)
       if t.tag == 0x06 {
@@ -141,6 +156,9 @@ fn curve_of(oid : String?) -> @curve.Curve raise @asn1.Refused {
     Some(o) if o == oid_p384 => P384
     Some(o) if o == oid_p521 => P521
     Some(o) if o == oid_secp256k1 => Secp256k1
+    Some(o) if o == oid_brainpool_p256r1 => BrainpoolP256r1
+    Some(o) if o == oid_brainpool_p384r1 => BrainpoolP384r1
+    Some(o) if o == oid_brainpool_p512r1 => BrainpoolP512r1
     Some(o) => raise @asn1.Unsupported("elliptic curve " + o)
     None => raise @asn1.Malformed("EC key without a named curve")
   }
@@ -183,10 +201,40 @@ pub fn Spki::p256(self : Spki) -> @ecdsa.PublicKey raise @asn1.Refused {
 }
 
 ///|
+/// The scheme an RSASSA-PSS key held to `digest` signs and verifies under (RFC 4055 §3.1): MGF1
+/// over the same digest, a salt as long as the digest. A key held to no digest reads as SHA-256,
+/// the pairing RFC 8446 §4.2.3 names first; a TLS 1.3 peer picks the digest of each signature.
+fn pss_scheme(digest : @rsa.Digest) -> (@rsa.Digest, @rsa.Scheme) {
+  (digest, Pss(salt=Exact(digest_size(digest))))
+}
+
+///|
+/// The OID of a digest RSASSA-PSS parameters may name.
+fn digest_oid(digest : @rsa.Digest) -> String {
+  match digest {
+    Sha384 => "2.16.840.1.101.3.4.2.2"
+    Sha512 => "2.16.840.1.101.3.4.2.3"
+    _ => "2.16.840.1.101.3.4.2.1"
+  }
+}
+
+///|
+/// The digest an OID from `digest_oid` names.
+fn digest_named(oid : String) -> @rsa.Digest raise @asn1.Refused {
+  match oid {
+    "2.16.840.1.101.3.4.2.1" => Sha256
+    "2.16.840.1.101.3.4.2.2" => Sha384
+    "2.16.840.1.101.3.4.2.3" => Sha512
+    o => raise @asn1.Unsupported("RSASSA-PSS digest " + o)
+  }
+}
+
+///|
 /// The RSA public key a SubjectPublicKeyInfo carries.
 ///
 /// The key bits are an `RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent INTEGER }`
-/// (RFC 8017 §A.1.1). Refuses any algorithm but rsaEncryption.
+/// (RFC 8017 §A.1.1). Refuses any algorithm but rsaEncryption and RSASSA-PSS; an RSASSA-PSS key
+/// keeps the digest and scheme its parameters hold it to, whatever `digest` and `scheme` say.
 ///
 /// `digest` and `scheme` are the signature parameters the key is built with. They do not enter
 /// encryption at all — `@rsa.PublicKey::encrypt` takes its own — so a caller that only encrypts
@@ -196,7 +244,16 @@ pub fn Spki::rsa(
   digest~ : @rsa.Digest = Sha256,
   scheme~ : @rsa.Scheme = Pkcs1,
 ) -> @rsa.PublicKey raise @asn1.Refused {
-  if self.alg != oid_rsa {
+  let (digest, scheme) = if self.alg == oid_rsa {
+    (digest, scheme)
+  } else if self.alg == oid_rsa_pss {
+    pss_scheme(
+      match self.params {
+        Some(oid) => digest_named(oid)
+        None => Sha256
+      },
+    )
+  } else {
     raise @asn1.Unsupported("public key algorithm " + self.alg)
   }
   let seq = @asn1.only(key_octets(self)[:])
@@ -215,12 +272,12 @@ pub fn Spki::rsa(
 }
 
 ///|
-/// The public key a SubjectPublicKeyInfo carries: RSA, ECDSA on P-256, P-384, P-521 or
-/// secp256k1, Ed25519, or ML-DSA at any of its three parameter sets. Another algorithm raises
-/// `Unsupported`.
+/// The public key a SubjectPublicKeyInfo carries: RSA, under rsaEncryption or RSASSA-PSS; ECDSA on
+/// P-256, P-384, P-521, secp256k1 or the three brainpool curves of RFC 5639; Ed25519; or ML-DSA at
+/// any of its three parameter sets. Another algorithm raises `Unsupported`.
 pub fn Spki::key(self : Spki) -> Key raise @asn1.Refused {
   match self.alg {
-    a if a == oid_rsa => Rsa(self.rsa())
+    a if a == oid_rsa || a == oid_rsa_pss => Rsa(self.rsa())
     a if a == oid_ec_key => Ec(ec_key(self))
     a if a == oid_ed25519 => {
       if self.params is Some(_) {
@@ -302,9 +359,8 @@ fn oid_der(dotted : String) -> Bytes raise @asn1.Refused {
 }
 
 ///|
-/// The object identifier arcs a curve is named by, for the writer. This covers every curve the
-/// crypto package holds, including the three the reader above does not take: a key in hand can be
-/// written out whatever curve it is on, and only what a peer sends has to pass the reader's list.
+/// The object identifier arcs a curve is named by, for the writer: every curve the crypto package
+/// holds, the same list the reader takes.
 fn curve_arcs(curve : @curve.Curve) -> Array[Int32] {
   match curve {
     P256 => [1, 2, 840, 10045, 3, 1, 7]

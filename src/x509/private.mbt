@@ -215,6 +215,19 @@ fn pkcs8(items : Array[@asn1.Tlv]) -> PrivateKey raise @asn1.Refused {
     None =>
       match alg {
         a if a == oid_rsa => pkcs1(rsa_items(inner))
+        a if a == oid_rsa_pss => {
+          let (digest, scheme) = pss_scheme(
+            if params is None {
+              Sha256
+            } else {
+              pss_params(params)
+            },
+          )
+          match pkcs1(rsa_items(inner)) {
+            Rsa(key) => Rsa(key.with_scheme(digest~, scheme~))
+            other => other
+          }
+        }
         a if a == oid_ec_key => {
           guard params is Some(p) else {
             raise @asn1.Malformed("EC key without a named curve")
