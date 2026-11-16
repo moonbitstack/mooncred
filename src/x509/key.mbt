@@ -11,6 +11,18 @@ let oid_rsa : String = "1.2.840.113549.1.1.1"
 let oid_rsa_pss : String = "1.2.840.113549.1.1.10"
 
 ///|
+/// id-dsa (RFC 3279 §2.3.2), whose parameters are the domain p, q and g.
+let oid_dsa : String = "1.2.840.10040.4.1"
+
+///|
+/// dhpublicnumber (RFC 3279 §2.3.3, X9.42): a Diffie-Hellman key with p, g and q.
+let oid_dh : String = "1.2.840.10046.2.1"
+
+///|
+/// dhKeyAgreement (PKCS #3): a Diffie-Hellman key with p and g, which is what OpenSSL writes.
+let oid_dh_pkcs3 : String = "1.2.840.113549.1.3.1"
+
+///|
 let oid_ed25519 : String = "1.3.101.112"
 
 ///|
@@ -72,11 +84,14 @@ fn ml_dsa_arcs(kind : @mldsa.Kind) -> Array[Int32] {
 /// the key bits. For an EC key the parameter is the named curve; for an RSASSA-PSS key it is the
 /// digest its parameters hold it to, read in the one shape `pss_params` takes, and `None` when it
 /// is held to none. Absent and NULL parameters both read as `None`, which is what every algorithm
-/// reachable from here means by either.
+/// reachable from here means by either. `domain` is the parameters as DER when they are a
+/// structure rather than an identifier: a DSA key's p, q and g (RFC 3279 §2.3.2), a
+/// Diffie-Hellman key's p and g with whatever else its form adds.
 #derive(Eq, Debug)
 pub(all) struct Spki {
   alg : String
   params : String?
+  domain : Bytes?
   key : @asn1.Bits
 }
 
@@ -89,6 +104,12 @@ pub(all) enum Key {
   Ec(@ecdsa.PublicKey)
   Ed25519(@ed25519.PublicKey)
   MlDsa(@mldsa.PublicKey)
+  /// DSA over its own domain (FIPS 186-4), for TLS 1.2's DSS suites and the chains they show.
+  Dsa(@dsa.PublicKey)
+  /// A static Diffie-Hellman key: the prime, the generator and the public value, big-endian. It
+  /// agrees on a secret and signs nothing; TLS 1.2's DH_RSA and DH_DSS suites put one in the
+  /// server's certificate.
+  Dh(prime~ : Bytes, generator~ : Bytes, public~ : Bytes)
 }
 
 ///|
@@ -125,6 +146,11 @@ fn read_spki(tlv : @asn1.Tlv) -> Spki raise @asn1.Refused {
     raise @asn1.Malformed("SubjectPublicKeyInfo is not an algorithm and a key")
   }
   let (alg, params) = read_alg(items[0])
+  let domain = if alg == oid_dsa || alg == oid_dh || alg == oid_dh_pkcs3 {
+    params.map(p => p.to_owned())
+  } else {
+    None
+  }
   let params = match params {
     Some(p) if alg == oid_rsa_pss => Some(digest_oid(pss_params(Some(p))))
     Some(p) => {
@@ -137,7 +163,84 @@ fn read_spki(tlv : @asn1.Tlv) -> Spki raise @asn1.Refused {
     }
     None => None
   }
-  { alg, params, key: items[1].bits(), }
+  { alg, params, domain, key: items[1].bits(), }
+}
+
+///|
+/// Dss-Parms (RFC 3279 §2.3.2): the prime p, the subgroup order q and the generator g.
+fn dsa_domain(der : BytesView) -> @dsa.Domain raise @asn1.Refused {
+  let seq = @asn1.only(der)
+  let items = if seq.tag == 0x30 { seq.items() } else { [] }
+  if items.length() != 3 {
+    raise @asn1.Malformed("Dss-Parms is not a p, a q and a g")
+  }
+  @dsa.Domain::raw(items[0].int(), items[1].int(), items[2].int())
+}
+
+///|
+/// The DSA public key a SubjectPublicKeyInfo carries: y, an INTEGER inside the key bits, on the
+/// domain its parameters give. RFC 3279 lets a certificate leave the domain to its issuer; such a
+/// key is refused here, as webpki and Go refuse it.
+fn dsa_key(spki : Spki) -> @dsa.PublicKey raise @asn1.Refused {
+  guard spki.domain is Some(der) else {
+    raise @asn1.Malformed("DSA key without its domain")
+  }
+  let domain = dsa_domain(der[:])
+  let y = @asn1.only(key_octets(spki)[:]).int()
+  if y <= 1 || y >= domain.p() {
+    raise @asn1.Malformed("DSA public value outside its group")
+  }
+  @dsa.PublicKey::new(y.to_octets(length=domain.modulus_size())[:], domain~) catch {
+    _ => raise @asn1.Malformed("DSA public value wider than its prime")
+  }
+}
+
+///|
+/// The prime and generator of a Diffie-Hellman key's parameters: X9.42's DomainParameters, p, g
+/// and q with optional extras (RFC 3279 §2.3.3), or PKCS #3's DHParameter, p and g with an
+/// optional length.
+fn dh_group(der : BytesView) -> (BigInt, BigInt) raise @asn1.Refused {
+  let seq = @asn1.only(der)
+  let items = if seq.tag == 0x30 { seq.items() } else { [] }
+  if items.length() < 2 {
+    raise @asn1.Malformed("Diffie-Hellman parameters are not a p and a g")
+  }
+  let p = items[0].int()
+  let g = items[1].int()
+  if p <= 3 || g <= 1 || g >= p - 1 {
+    raise @asn1.Malformed("Diffie-Hellman group out of range")
+  }
+  (p, g)
+}
+
+///|
+/// A static Diffie-Hellman public key: y, an INTEGER in the key bits, inside the group.
+fn dh_key(spki : Spki) -> Key raise @asn1.Refused {
+  guard spki.domain is Some(der) else {
+    raise @asn1.Malformed("Diffie-Hellman key without its group")
+  }
+  let (p, g) = dh_group(der[:])
+  let y = @asn1.only(key_octets(spki)[:]).int()
+  if y <= 1 || y >= p - 1 {
+    raise @asn1.Malformed("Diffie-Hellman public value outside its group")
+  }
+  Dh(prime=p.to_octets(), generator=g.to_octets(), public=y.to_octets())
+}
+
+///|
+/// DHParameter (PKCS #3) for a prime and a generator.
+fn dh_parameter(prime : Bytes, generator : Bytes) -> Bytes {
+  @asn1.sequence([@asn1.integer(prime), @asn1.integer(generator)])
+}
+
+///|
+/// Dss-Parms for a domain.
+fn dss_parms(domain : @dsa.Domain) -> Bytes {
+  @asn1.sequence([
+    @asn1.integer(domain.p().to_octets()),
+    @asn1.integer(domain.q().to_octets()),
+    @asn1.integer(domain.g().to_octets()),
+  ])
 }
 
 ///|
@@ -291,6 +394,8 @@ pub fn Spki::key(self : Spki) -> Key raise @asn1.Refused {
       )
     }
     a if ml_dsa_of(a) is Some(kind) => MlDsa(ml_dsa_key(self, kind))
+    a if a == oid_dsa => Dsa(dsa_key(self))
+    a if a == oid_dh || a == oid_dh_pkcs3 => dh_key(self)
     a => raise @asn1.Unsupported("public key algorithm " + a)
   }
 }
@@ -408,6 +513,22 @@ pub fn Spki::encode(key : Key) -> Bytes {
       @asn1.sequence([
         @asn1.sequence([@asn1.oid(ml_dsa_arcs(k.kind()))]),
         @asn1.bit_string(k.bytes()),
+      ])
+    Dsa(k) =>
+      @asn1.sequence([
+        @asn1.sequence([
+          @asn1.oid([1, 2, 840, 10040, 4, 1]),
+          dss_parms(k.domain()),
+        ]),
+        @asn1.bit_string(@asn1.integer(k.bytes())),
+      ])
+    Dh(prime~, generator~, public~) =>
+      @asn1.sequence([
+        @asn1.sequence([
+          @asn1.oid([1, 2, 840, 113549, 1, 3, 1]),
+          dh_parameter(prime, generator),
+        ]),
+        @asn1.bit_string(@asn1.integer(public)),
       ])
   }
 }

@@ -9,6 +9,9 @@ pub(all) enum PrivateKey {
   Ec(@ecdsa.PrivateKey)
   Ed25519(@ed25519.PrivateKey)
   MlDsa(@mldsa.PrivateKey)
+  Dsa(@dsa.PrivateKey)
+  /// A static Diffie-Hellman key: the prime, the generator and the secret exponent, big-endian.
+  Dh(prime~ : Bytes, generator~ : Bytes, secret~ : Bytes)
 }
 
 ///|
@@ -121,6 +124,24 @@ pub fn PrivateKey::pkcs8(self : PrivateKey) -> Bytes raise @asn1.Refused {
         @asn1.sequence([@asn1.oid(ml_dsa_arcs(k.kind()))]),
         @asn1.octet_string(@asn1.octet_string(k.bytes())),
       ])
+    Dh(prime~, generator~, secret~) =>
+      @asn1.sequence([
+        @asn1.integer(b"\x00"),
+        @asn1.sequence([
+          @asn1.oid([1, 2, 840, 113549, 1, 3, 1]),
+          dh_parameter(prime, generator),
+        ]),
+        @asn1.octet_string(@asn1.integer(secret)),
+      ])
+    Dsa(k) =>
+      @asn1.sequence([
+        @asn1.integer(b"\x00"),
+        @asn1.sequence([
+          @asn1.oid([1, 2, 840, 10040, 4, 1]),
+          dss_parms(k.domain()),
+        ]),
+        @asn1.octet_string(@asn1.integer(k.bytes())),
+      ])
     Rsa(_) =>
       raise @asn1.Unsupported(
         "an RSA key cannot be re-encoded from @rsa.PrivateKey; encrypt the PKCS#8 octets instead",
@@ -178,6 +199,15 @@ pub fn PrivateKey::public(self : PrivateKey) -> Key {
     Ec(k) => Ec(k.public())
     Ed25519(k) => Ed25519(k.public())
     MlDsa(k) => MlDsa(k.public_key())
+    Dsa(k) => Dsa(k.public())
+    Dh(prime~, generator~, secret~) => {
+      let p = BigInt::from_octets(prime[:])
+      let y = BigInt::from_octets(generator[:]).pow(
+        BigInt::from_octets(secret[:]),
+        modulus=p,
+      )
+      Dh(prime~, generator~, public=y.to_octets())
+    }
   }
 }
 
@@ -192,6 +222,15 @@ pub impl Eq for Key with fn equal(a, b) {
     (Ec(x), Ec(y)) => x.curve() == y.curve() && x.bytes() == y.bytes()
     (Ed25519(x), Ed25519(y)) => x.bytes() == y.bytes()
     (MlDsa(x), MlDsa(y)) => x.kind() == y.kind() && x.bytes() == y.bytes()
+    (Dsa(x), Dsa(y)) =>
+      dss_parms(x.domain()) == dss_parms(y.domain()) && x.bytes() == y.bytes()
+    (
+      Dh(prime=p1, generator=g1, public=y1),
+      Dh(prime=p2, generator=g2, public=y2),
+    ) =>
+      BigInt::from_octets(p1[:]) == BigInt::from_octets(p2[:]) &&
+      BigInt::from_octets(g1[:]) == BigInt::from_octets(g2[:]) &&
+      BigInt::from_octets(y1[:]) == BigInt::from_octets(y2[:])
     _ => false
   }
 }
@@ -227,6 +266,44 @@ fn pkcs8(items : Array[@asn1.Tlv]) -> PrivateKey raise @asn1.Refused {
             Rsa(key) => Rsa(key.with_scheme(digest~, scheme~))
             other => other
           }
+        }
+        // RFC 5958 with RFC 3279's parameters: the domain beside the identifier, x as an INTEGER
+        // in the octets.
+        a if a == oid_dsa => {
+          guard params is Some(p) else {
+            raise @asn1.Malformed("DSA key without its domain")
+          }
+          let domain = dsa_domain(p)
+          let x = @asn1.only(inner).int()
+          if x <= 0 || x >= domain.q() {
+            raise @asn1.Malformed("DSA private value outside its subgroup")
+          }
+          Dsa(
+            @dsa.PrivateKey::new(x.to_octets(length=domain.size())[:], domain~) catch {
+              _ =>
+                raise @asn1.Malformed(
+                  "DSA private value wider than its subgroup",
+                )
+            },
+          )
+        }
+        // PKCS #3 or X9.42 parameters beside the identifier, x as an INTEGER in the octets.
+        a if a == oid_dh || a == oid_dh_pkcs3 => {
+          guard params is Some(p) else {
+            raise @asn1.Malformed("Diffie-Hellman key without its group")
+          }
+          let (prime, generator) = dh_group(p)
+          let x = @asn1.only(inner).int()
+          if x <= 0 || x >= prime - 1 {
+            raise @asn1.Malformed(
+              "Diffie-Hellman private value outside its group",
+            )
+          }
+          Dh(
+            prime=prime.to_octets(),
+            generator=generator.to_octets(),
+            secret=x.to_octets(),
+          )
         }
         a if a == oid_ec_key => {
           guard params is Some(p) else {

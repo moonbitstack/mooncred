@@ -377,6 +377,7 @@ test "ml-dsa: a key of another length under an identifier is refused" {
   let wrong : @x509.Spki = {
     alg: "2.16.840.1.101.3.4.3.18",
     params: None,
+    domain: None,
     key: cert.spki.key,
   }
   try {
@@ -391,6 +392,7 @@ test "ml-dsa: a key of another length under an identifier is refused" {
   let with_params : @x509.Spki = {
     alg: "2.16.840.1.101.3.4.3.17",
     params: Some("2.16.840.1.101.3.4.3.17"),
+    domain: None,
     key: cert.spki.key,
   }
   try {

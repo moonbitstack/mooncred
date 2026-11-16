@@ -8,6 +8,7 @@ import {
   "moonbitstack/mooncrypt/asn1",
   "moonbitstack/mooncrypt/pq/mldsa",
   "moonbitstack/mooncrypt/rsa",
+  "moonbitstack/mooncrypt/sign/dsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
   "moonbitstack/mooncrypt/sign/ed25519",
 }
@@ -43,7 +44,7 @@ pub let policy : Policy
 
 pub fn self_signed(key~ : PrivateKey, cn~ : String, serial~ : Bytes, not_before~ : Int64, not_after~ : Int64, exts? : Exts) -> Bytes raise @asn1.Refused
 
-pub fn signature_algorithm(PrivateKey) -> Bytes
+pub fn signature_algorithm(PrivateKey) -> Bytes raise @asn1.Refused
 
 pub fn signature_ok(BytesView, alg~ : String, params~ : Bytes?, sig~ : @asn1.Bits, key~ : Spki) -> Bool raise @asn1.Refused
 
@@ -151,6 +152,8 @@ pub(all) enum Key {
   Ec(@ecdsa.PublicKey)
   Ed25519(@ed25519.PublicKey)
   MlDsa(@mldsa.PublicKey)
+  Dsa(@dsa.PublicKey)
+  Dh(prime~ : Bytes, generator~ : Bytes, public~ : Bytes)
 }
 pub fn Key::equal(Self, Self) -> Bool
 pub fn Key::not_equal(Self, Self) -> Bool
@@ -186,6 +189,8 @@ pub(all) enum PrivateKey {
   Ec(@ecdsa.PrivateKey)
   Ed25519(@ed25519.PrivateKey)
   MlDsa(@mldsa.PrivateKey)
+  Dsa(@dsa.PrivateKey)
+  Dh(prime~ : Bytes, generator~ : Bytes, secret~ : Bytes)
 }
 pub fn PrivateKey::encrypt(Self, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32) -> Bytes raise @pbe.Refused
 pub fn PrivateKey::encrypt_pem(Self, passphrase~ : StringView, salt~ : BytesView, iv~ : BytesView, scheme? : @pbe.Scheme, rounds? : Int32) -> String raise @pbe.Refused
@@ -210,6 +215,7 @@ pub fn Roots::pem(String) -> Self raise @asn1.Refused
 pub(all) struct Spki {
   alg : String
   params : String?
+  domain : Bytes?
   key : @asn1.Bits
 }
 pub fn Spki::encode(Key) -> Bytes

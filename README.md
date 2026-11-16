@@ -56,7 +56,7 @@ let got = @jwt.verify(token[:], HS256, key, now=At(seconds),
 | `jwk` | JSON Web Key and key sets: reading, writing, choosing | RFC 7517, RFC 7518 §6 |
 | `jwe` | JSON Web Encryption in both serialisations: every RFC 7518 key-management algorithm, several recipients, additional data, compression | RFC 7516, 7518, 3394, 1951 |
 | `token` | A signed string for a cookie or a URL: expiry on verify, a salt per purpose, key rotation | — |
-| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA, Ed25519 or ML-DSA, match it against a host, validate a chain to a set of trust anchors; build a self-signed one for any key; read the private key that goes with it | RFC 5280, RFC 6125, RFC 7468, RFC 5958, RFC 5915, RFC 9881 |
+| `x509` | X.509 v3 certificates: read one down to its extensions, check its signature under RSA, ECDSA, Ed25519, ML-DSA or DSA, read the static Diffie-Hellman key TLS 1.2's DH suites put in a certificate, match it against a host, validate a chain to a set of trust anchors; build a self-signed one for any key; read the private key that goes with it | RFC 5280, RFC 6125, RFC 7468, RFC 5958, RFC 5915, RFC 9881 |
 | `csr` | Certificate signing requests: read one, check its signature, see what it asks for, and write one | RFC 2986, RFC 2985 §5.4 |
 | `pbe` | Encrypted private keys: PBES2 with PBKDF2, and the older PBES1 and PKCS#12 derivations openssl still writes | RFC 8018, RFC 7292 §B.2 |
 | `pkcs12` | PFX containers: the certificate chain and the key, with a MAC, read and written | RFC 7292, RFC 5652 |
@@ -308,7 +308,7 @@ holds a chain to, and whose rule each is:
 | The leaf allows the purpose asked for; an issuer that lists purposes allows it too | RFC 5280 §4.2.1.12, Go |
 | An unknown critical extension refuses the chain | RFC 5280 §4.2 |
 | Name constraints over dNSName, iPAddress, rfc822Name, directoryName and URI hosts | RFC 5280 §4.2.1.10 |
-| RSA PKCS#1 and PSS, ECDSA on seven curves (the NIST three, secp256k1 and the brainpool three), Ed25519, ML-DSA at all three sets; no SHA-1 | webpki, Go, RFC 5639, RFC 9881 |
+| RSA PKCS#1 and PSS, ECDSA on seven curves (the NIST three, secp256k1 and the brainpool three), Ed25519, ML-DSA at all three sets, DSA with SHA-2 (RFC 5758) on the key's own domain; no SHA-1 | webpki, Go, RFC 5639, RFC 9881 |
 | An RSASSA-PSS key (RFC 4055) is held to the digest its parameters name, in the same one shape; with no parameters it is held to none | RFC 4055 §3.1, RFC 8446 §4.2.3 |
 | An RSASSA-PSS signature is checked under the parameters it names — digest, mask and a salt as long as that digest — and refused as an unsupported algorithm when any of the three differs | RFC 4055 §3.1, Go |
 | An ML-DSA key asserts no keyEncipherment or keyAgreement, which a signing key cannot do | RFC 9881 §5 |

@@ -8,6 +8,7 @@ priv enum Scheme {
   Ecdsa(@sha2.Kind)
   Eddsa
   MlDsa(@mldsa.Kind)
+  Dsa(@sha2.Kind)
 }
 
 ///|
@@ -125,6 +126,10 @@ fn scheme_of(oid : String, params : BytesView?) -> Scheme raise @asn1.Refused {
     "1.2.840.10045.4.3.3" if none => Ecdsa(Sha384)
     "1.2.840.10045.4.3.4" if none => Ecdsa(Sha512)
     "1.3.101.112" if none => Eddsa
+    // RFC 5758 §3.1: DSA with SHA-2, parameters absent.
+    "2.16.840.1.101.3.4.3.2" if none => Dsa(Sha256)
+    "2.16.840.1.101.3.4.3.3" if none => Dsa(Sha384)
+    "2.16.840.1.101.3.4.3.4" if none => Dsa(Sha512)
     "1.2.840.113549.1.1.11"
     | "1.2.840.113549.1.1.12"
     | "1.2.840.113549.1.1.13"
@@ -209,6 +214,18 @@ pub fn signature_ok(
     // A signature under a set other than the key's is not a signature: FIPS 204 fixes the
     // signature length per set, so the two cannot be swapped.
     (MlDsa(kind), MlDsa(k)) => k.kind() == kind && k.verify(tbs, bytes)
+    (Dsa(kind), Dsa(k)) => {
+      let domain = k.domain()
+      guard ecdsa_raw(bytes, domain.size()) is Some(raw) else { return false }
+      let verifying = @dsa.PublicKey::with_hash(
+        k.bytes()[:],
+        () => (@sha2.Hasher::new(kind~) : &@spec.Hash),
+        domain~,
+      ) catch {
+        _ => return false
+      }
+      verifying.verify(tbs, raw[:])
+    }
     _ => false
   }
 }

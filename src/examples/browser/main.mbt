@@ -328,6 +328,8 @@ fn key_name(spki : @x509.Spki) -> String {
         D65 => "ML-DSA-65"
         D87 => "ML-DSA-87"
       }
+    Dsa(k) => "DSA \{k.domain().modulus_size() * 8}"
+    Dh(prime~, ..) => "Diffie-Hellman \{prime.length() * 8}"
   }
 }
 

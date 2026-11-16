@@ -32,7 +32,7 @@ fn alg_der(arcs : Array[Int32]) -> Bytes {
 /// signer does — SHA-256 on P-256 and secp256k1, SHA-384 on P-384, SHA-512 on P-521 and the
 /// brainpool curves of that size — RSA takes PKCS#1 v1.5 with SHA-256, and the ML-DSA identifiers
 /// name the parameter set (RFC 9881 §3).
-pub fn signature_algorithm(key : PrivateKey) -> Bytes {
+pub fn signature_algorithm(key : PrivateKey) -> Bytes raise @asn1.Refused {
   match key {
     Rsa(_) =>
       @asn1.sequence([@asn1.oid([1, 2, 840, 113549, 1, 1, 11]), @asn1.null()])
@@ -46,6 +46,9 @@ pub fn signature_algorithm(key : PrivateKey) -> Bytes {
       )
     Ed25519(_) => alg_der([1, 3, 101, 112])
     MlDsa(k) => alg_der(ml_dsa_arcs(k.kind()))
+    // dsa-with-sha256 (RFC 5758 §3.1), the digest `@dsa` signs with by default.
+    Dsa(_) => alg_der([2, 16, 840, 1, 101, 3, 4, 3, 2])
+    Dh(..) => raise @asn1.Unsupported("a Diffie-Hellman key signs nothing")
   }
 }
 
@@ -71,6 +74,16 @@ pub fn signature_value(
     }
     Ed25519(k) => k.sign(tbs)
     MlDsa(k) => k.sign(tbs)
+    Dh(..) => raise @asn1.Unsupported("a Diffie-Hellman key signs nothing")
+    // Dss-Sig-Value (RFC 3279 §2.2.2), the same shape as ECDSA's.
+    Dsa(k) => {
+      let raw = k.sign(tbs)
+      let size = raw.length() / 2
+      @asn1.sequence([
+        @asn1.integer(raw[0:size].to_owned()),
+        @asn1.integer(raw[size:].to_owned()),
+      ])
+    }
   }
 }
 

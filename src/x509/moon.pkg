@@ -16,6 +16,7 @@ import {
   "moonbitstack/mooncrypt/rsa",
   "moonbitstack/mooncrypt/sign/ecdsa",
   "moonbitstack/mooncrypt/sign/ed25519",
+  "moonbitstack/mooncrypt/sign/dsa",
   "moonbitstack/moondate",
   "moonbitstack/mooncrypt/spec",
   "moonbitstack/moonbase/base16",

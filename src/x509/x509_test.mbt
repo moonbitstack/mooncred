@@ -459,6 +459,7 @@ test "x509: a public key is refused unless it is an uncompressed point on P-256"
       let spki : @x509.Spki = {
         alg: good.alg,
         params: good.params,
+        domain: None,
         key: { bytes: off_curve.to_bytes(), unused: 0, },
       }
       spki.p256() |> ignore
@@ -470,6 +471,7 @@ test "x509: a public key is refused unless it is an uncompressed point on P-256"
       let spki : @x509.Spki = {
         alg: good.alg,
         params: good.params,
+        domain: None,
         key: { bytes: good.key.bytes[0:33].to_owned(), unused: 0, },
       }
       spki.p256() |> ignore
@@ -481,6 +483,7 @@ test "x509: a public key is refused unless it is an uncompressed point on P-256"
       let spki : @x509.Spki = {
         alg: good.alg,
         params: Some("1.3.132.0.34"),
+        domain: None,
         key: good.key,
       }
       spki.p256() |> ignore
