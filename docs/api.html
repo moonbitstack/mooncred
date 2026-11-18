@@ -38,7 +38,7 @@
   <article class="sheet" id="contents">
     <header class="lh"><span class="name">Mooncred</span><span class="spacer"></span><span>the reference</span><span class="folio">i</span></header>
     <h1>The reference, <em>by package.</em></h1>
-    <p>Every public type, function and value of mooncred 0.7.1, read from each package's interface and the comments above its definitions. The <a href="guide.html">guide</a> shows them at work.</p>
+    <p>Every public type, function and value of mooncred 0.8.0, read from each package's interface and the comments above its definitions. The <a href="guide.html">guide</a> shows them at work.</p>
     <nav class="pkgs" aria-label="Packages">
       <a href="#jwt"><span class="pkg">jwt</span><span class="what">JSON Web Signature</span><span class="count">33</span></a>
       <a href="#jwk"><span class="pkg">jwk</span><span class="what">JSON Web Key</span><span class="count">20</span></a>
@@ -816,6 +816,8 @@
   Ec(@ecdsa.PublicKey)
   Ed25519(@ed25519.PublicKey)
   MlDsa(@mldsa.PublicKey)
+  Dsa(@dsa.PublicKey)
+  Dh(prime~ : Bytes, generator~ : Bytes, public~ : Bytes)
 }</code></pre>
 <p>A public key as a signature can be checked against. An RSA or EC key is held with the digest its own algorithm defaults to; a certificate's signature algorithm decides the digest it is actually checked with, so the key is re-read for each signature rather than fixed here.</p>
 <div class="impls">implements Eq</div>
@@ -848,6 +850,8 @@
   Ec(@ecdsa.PrivateKey)
   Ed25519(@ed25519.PrivateKey)
   MlDsa(@mldsa.PrivateKey)
+  Dsa(@dsa.PrivateKey)
+  Dh(prime~ : Bytes, generator~ : Bytes, secret~ : Bytes)
 }</code></pre>
 <p>A private key as a server signs with: what a <code>PRIVATE KEY</code>, <code>EC PRIVATE KEY</code> or <code>RSA PRIVATE KEY</code> file holds.</p>
 </div>
@@ -861,9 +865,10 @@
 <pre class="sig"><code>pub(all) struct Spki {
   alg : String
   params : String?
+  domain : Bytes?
   key : @asn1.Bits
 }</code></pre>
-<p>A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one, and the key bits. For an EC key the parameter is the named curve; for an RSASSA-PSS key it is the digest its parameters hold it to, read in the one shape <code>pss_params</code> takes, and <code>None</code> when it is held to none. Absent and NULL parameters both read as <code>None</code>, which is what every algorithm reachable from here means by either.</p>
+<p>A SubjectPublicKeyInfo: the algorithm OID, the parameter OID when the algorithm takes one, and the key bits. For an EC key the parameter is the named curve; for an RSASSA-PSS key it is the digest its parameters hold it to, read in the one shape <code>pss_params</code> takes, and <code>None</code> when it is held to none. Absent and NULL parameters both read as <code>None</code>, which is what every algorithm reachable from here means by either. <code>domain</code> is the parameters as DER when they are a structure rather than an identifier: a DSA key's p, q and g (RFC 3279 §2.3.2), a Diffie-Hellman key's p and g with whatever else its form adds.</p>
 </div>
 <div class="item" id="x509-Usage">
 <div class="name"><span class="kind">type</span>Usage</div>
@@ -965,7 +970,7 @@
 </div>
 <div class="item" id="x509-signature_algorithm">
 <div class="name"><span class="kind">fn</span>signature_algorithm</div>
-<pre class="sig"><code>pub fn signature_algorithm(PrivateKey) -&gt; Bytes</code></pre>
+<pre class="sig"><code>pub fn signature_algorithm(PrivateKey) -&gt; Bytes raise @asn1.Refused</code></pre>
 <p>The signature algorithm the key signs with. ECDSA pairs its digest to the curve the way the signer does — SHA-256 on P-256 and secp256k1, SHA-384 on P-384, SHA-512 on P-521 and the brainpool curves of that size — RSA takes PKCS#1 v1.5 with SHA-256, and the ML-DSA identifiers name the parameter set (RFC 9881 §3).</p>
 </div>
 <div class="item" id="x509-signature_ok">
