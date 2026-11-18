@@ -111,7 +111,7 @@ test "x509: a real RSA certificate, read down to its extensions" {
   assert_eq(cert.version, 3)
   assert_eq(
     cert.serial,
-    BigInt::from_string("68f30bd1cd805d4eb7122146ff43c610718471a3", radix=16),
+    @string.parse_bigint("68f30bd1cd805d4eb7122146ff43c610718471a3", radix=16),
   )
   assert_eq(cert.alg, "1.2.840.113549.1.1.11") // sha256WithRSAEncryption
   assert_eq(cert.subject.rdns, [[{ oid: "2.5.4.3", value: "localhost", }]])
