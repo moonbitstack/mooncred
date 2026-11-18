@@ -83,6 +83,9 @@ fn Usage::oid(self : Usage) -> String? {
 /// for it is worth having. Off by default, because RFC 5280 and webpki both say a CA certificate
 /// is not an end-entity certificate, and a certificate that is both is a configuration mistake
 /// far more often than a design.
+///
+/// `dsa` lets a DSA key sign a link of the chain. Off by default: FIPS 186-5 withdrew DSA, and
+/// neither the CA/Browser Forum's requirements nor webpki accept it.
 #derive(Eq, Debug)
 pub(all) struct Policy {
   usage : Usage
@@ -91,6 +94,7 @@ pub(all) struct Policy {
   comparisons : Int32
   bits : Int32
   anchor_leaf : Bool
+  dsa : Bool
 }
 
 ///|
@@ -104,6 +108,7 @@ pub let policy : Policy = {
   comparisons: 250_000,
   bits: 2048,
   anchor_leaf: false,
+  dsa: false,
 }
 
 ///|
@@ -115,8 +120,9 @@ pub fn Policy::new(
   comparisons~ : Int32 = policy.comparisons,
   bits~ : Int32 = policy.bits,
   anchor_leaf~ : Bool = policy.anchor_leaf,
+  dsa~ : Bool = policy.dsa,
 ) -> Policy {
-  { usage, depth, budget, comparisons, bits, anchor_leaf, }
+  { usage, depth, budget, comparisons, bits, anchor_leaf, dsa, }
 }
 
 ///|
@@ -335,6 +341,10 @@ fn Search::signed(
     self.note(Weak(at~))
     return false
   }
+  if !self.policy.dsa && is_dsa(issuer) {
+    self.note(Algorithm(at~, oid=child.alg))
+    return false
+  }
   let ok = child.signed_by(issuer) catch {
     @asn1.Unsupported(_) => {
       self.note(Algorithm(at~, oid=child.alg))
@@ -349,6 +359,11 @@ fn Search::signed(
     self.note(Signature(at~))
   }
   ok
+}
+
+///|
+fn is_dsa(spki : Spki) -> Bool {
+  (spki.key() catch { _ => return false }) is Dsa(_)
 }
 
 ///|

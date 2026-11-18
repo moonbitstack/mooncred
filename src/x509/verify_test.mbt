@@ -267,7 +267,9 @@ test "policy: the three ways of writing one agree" {
     comparisons: 250_000,
     bits: 2048,
     anchor_leaf: false,
+    dsa: false,
   })
+  assert_eq(@x509.Policy::new(dsa=true), { ..@x509.policy, dsa: true, })
 }
 
 ///|

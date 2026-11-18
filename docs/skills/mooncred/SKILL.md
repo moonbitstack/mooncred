@@ -199,6 +199,8 @@ returning a half-read container. A `PrivateKey` has no `Show`: it does not print
   and the trust anchor — what `openssl req -x509` makes, and what OpenSSL and Go both accept —
   turns that first refusal off with `@x509.Policy::new(anchor_leaf=true)`; it is off by
   default, and it says nothing about a CA leaf that is not itself the anchor.
+- A DSA key does not sign a link of a chain unless `@x509.Policy::new(dsa=true)` says it may;
+  the refusal is `Algorithm`, as for any algorithm the path cannot use.
 - `jwk` keeps an RSA private key's `p`, `q`, `dp`, `dq` and `qi` when the document carries
   them, and answers `crt()` with `None` when it does not.
 - Everything that can fail raises. Nothing returns a partially filled value.

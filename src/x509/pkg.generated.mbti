@@ -178,9 +178,10 @@ pub(all) struct Policy {
   comparisons : Int32
   bits : Int32
   anchor_leaf : Bool
+  dsa : Bool
 }
 pub fn Policy::equal(Self, Self) -> Bool
-pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32, comparisons? : Int32, bits? : Int32, anchor_leaf? : Bool) -> Self
+pub fn Policy::new(usage? : Usage, depth? : Int32, budget? : Int32, comparisons? : Int32, bits? : Int32, anchor_leaf? : Bool, dsa? : Bool) -> Self
 pub fn Policy::not_equal(Self, Self) -> Bool
 pub fn Policy::to_repr(Self) -> @debug.Repr
 

@@ -113,3 +113,40 @@ test "dsa: a key without its domain is refused" {
   }
   assert_true(refused)
 }
+
+///|
+test "dsa: a DSA key signs a chain only when the policy says so" {
+  let key = @x509.PrivateKey::pem(dsa_private)
+  let der = @x509.self_signed(
+    key~,
+    cn="dsa.example",
+    serial=b"\x09",
+    not_before=1793232000L,
+    not_after=1824768000L,
+    exts={ ..@x509.Exts::empty(), san: [Dns("dsa.example")], },
+  )
+  let roots = @x509.Roots::new(certs=[der])
+  let refusal = try
+    @x509.verify(
+      [der],
+      roots,
+      now=1793232001L,
+      host="dsa.example",
+      policy=@x509.Policy::new(usage=Any),
+    )
+  catch {
+    e => e
+  } noraise {
+    _ => fail("a DSA signature was accepted by default")
+  }
+  assert_eq(refusal, Algorithm(at=0, oid="2.16.840.1.101.3.4.3.2"))
+  assert_false(@x509.policy.dsa)
+  let path = @x509.verify(
+    [der],
+    roots,
+    now=1793232001L,
+    host="dsa.example",
+    policy=@x509.Policy::new(usage=Any, dsa=true),
+  )
+  assert_eq(path.length(), 2)
+}
