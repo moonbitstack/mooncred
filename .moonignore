@@ -9,3 +9,6 @@ target/
 # The conformance runner in src/tools reads the suite CI downloads; it is not part of the
 # library anyone adds.
 src/tools/
+
+# Examples are read in the repository and run in CI; they do not ship.
+src/examples/
